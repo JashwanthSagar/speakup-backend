@@ -4,85 +4,190 @@
   <title>Student Dashboard</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="bg-animate">
 
-<div style="position:absolute; top:20px; right:20px;">
-  <button onclick="logout()">Logout</button>
-</div>
+<div class="container">
 
-<div class="center">
-  <h2>Speaking Practice</h2>
+  <div class="card-main">
 
-  <h3>Today's Topic:</h3>
-  <p id="topic"></p>
+    <div class="header">
+      <h2>SpeakUp</h2>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
 
-  <button onclick="startRecording()">🎤 Start</button>
-  <button onclick="stopRecording()">Stop</button>
+    <h1 id="welcomeText" class="welcome">Welcome 👋</h1>
 
-  <br><br>
-  <button onclick="submitStudent()">Submit</button>
+    <div class="topic-box">
+      <h3>📚 Today's Topic</h3>
+      <p id="topicText">Loading...</p>
+    </div>
+
+    <div class="status">
+      <span id="dot"></span>
+      <span id="statusText">Not Recording</span>
+    </div>
+
+    <h2 id="timer">00:00</h2>
+
+    <div class="btns">
+      <button onclick="startRecording()">🎙 Start</button>
+      <button onclick="stopRecording()">⏹ Stop</button>
+      <button onclick="submitAudio()">📤 Submit</button>
+    </div>
+
+    <audio id="audioPlayback" controls></audio>
+
+    <div class="speech-box">
+      <h3>Your Speech 📝</h3>
+      <p id="speechText">---</p>
+    </div>
+
+    <div class="speech-box">
+      <h3>Corrected Speech ✅</h3>
+      <p id="correctedText">---</p>
+    </div>
+
+  </div>
+
 </div>
 
 <script>
-const topic = localStorage.getItem("topic") || "No topic assigned";
-document.getElementById("topic").innerText = topic;
-
 let mediaRecorder;
 let audioChunks = [];
-let stream;   // 🔥 IMPORTANT
+let timerInterval;
+let seconds = 0;
 
+let recognition;
+let finalTranscript = "";
+
+const BACKEND_URL = "https://speakup-backend-1.onrender.com";
+
+// Load student
+const student = JSON.parse(localStorage.getItem("student"));
+if (student) {
+  document.getElementById("welcomeText").innerText =
+    "Welcome, " + student.name;
+}
+
+// Topic
+document.getElementById("topicText").innerText =
+  localStorage.getItem("topic") || "No topic";
+
+// Speech Recognition
+if ('webkitSpeechRecognition' in window) {
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-IN";
+
+  recognition.onresult = function(event) {
+    let transcript = "";
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    finalTranscript = transcript;
+    document.getElementById("speechText").innerText = finalTranscript;
+  };
+}
+
+// Start Recording
 async function startRecording() {
-  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   mediaRecorder = new MediaRecorder(stream);
-  audioChunks = [];
-
   mediaRecorder.start();
 
-  mediaRecorder.ondataavailable = e => {
-    audioChunks.push(e.data);
-  };
+  audioChunks = [];
+  finalTranscript = "";
+
+  if (recognition) recognition.start();
+
+  document.getElementById("statusText").innerText = "Recording...";
+  document.getElementById("dot").style.background = "red";
+
+  seconds = 0;
+  timerInterval = setInterval(() => {
+    seconds++;
+    let min = String(Math.floor(seconds / 60)).padStart(2, '0');
+    let sec = String(seconds % 60).padStart(2, '0');
+    document.getElementById("timer").innerText = min + ":" + sec;
+  }, 1000);
+
+  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+  window.stream = stream;
 }
 
+// Stop Recording
 function stopRecording() {
   mediaRecorder.stop();
+  clearInterval(timerInterval);
 
-  // 🔥 STOP MICROPHONE COMPLETELY
-  stream.getTracks().forEach(track => track.stop());
+  window.stream.getTracks().forEach(track => track.stop());
 
-  mediaRecorder.onstop = async () => {
-    const blob = new Blob(audioChunks, { type: 'audio/wav' });
-    await uploadAudio(blob);
-    audioChunks = [];
+  if (recognition) recognition.stop();
+
+  document.getElementById("statusText").innerText = "Stopped";
+  document.getElementById("dot").style.background = "gray";
+
+  setTimeout(async () => {
+    let original = finalTranscript || "No speech detected";
+
+    document.getElementById("speechText").innerText = original;
+
+    // 🔥 AI Correction
+    try {
+      const res = await fetch(BACKEND_URL + "/correct", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text: original })
+      });
+
+      const data = await res.json();
+
+      document.getElementById("correctedText").innerText =
+        data.corrected;
+
+    } catch {
+      document.getElementById("correctedText").innerText =
+        "AI Error";
+    }
+
+  }, 500);
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(audioChunks, { type: "audio/webm" });
+    document.getElementById("audioPlayback").src =
+      URL.createObjectURL(blob);
+    window.audioBlob = blob;
   };
 }
 
-// 🔗 REPLACE WITH YOUR RENDER URL
-const BACKEND_URL = "https://YOUR-BACKEND-URL";
+// Submit
+function submitAudio() {
+  if (!window.audioBlob) {
+    alert("Record first!");
+    return;
+  }
 
-async function uploadAudio(blob) {
   const formData = new FormData();
-  formData.append("audio", blob, "recording.wav");
+  formData.append("audio", window.audioBlob);
+  formData.append("name", student.name);
+  formData.append("pin", student.pin);
 
-  await fetch(BACKEND_URL + "/upload", {
+  fetch(BACKEND_URL + "/upload", {
     method: "POST",
     body: formData
-  });
-
-  alert("Audio uploaded!");
+  })
+  .then(() => alert("Uploaded ✅"))
+  .catch(() => alert("Upload Failed ❌"));
 }
 
-function submitStudent() {
-  let current = JSON.parse(localStorage.getItem("currentStudent"));
-  let students = JSON.parse(localStorage.getItem("students")) || [];
-
-  students.push(current);
-  localStorage.setItem("students", JSON.stringify(students));
-
-  alert("Submitted!");
-}
-
+// Logout
 function logout() {
+  localStorage.removeItem("student");
   window.location.href = "index.html";
 }
 </script>
