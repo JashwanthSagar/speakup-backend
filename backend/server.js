@@ -12,6 +12,8 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // OpenAI Setup
+const OpenAI = require("openai");
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
