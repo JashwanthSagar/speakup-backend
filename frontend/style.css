@@ -1,0 +1,72 @@
+body {
+  margin: 0;
+  font-family: Arial;
+  color: white;
+}
+
+nav {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  background: rgba(0,0,0,0.5);
+}
+
+nav a {
+  color: white;
+  margin: 10px;
+  text-decoration: none;
+}
+
+.center {
+  text-align: center;
+  margin-top: 10%;
+}
+
+.login-box {
+  width: 300px;
+  margin: 150px auto;
+  padding: 30px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 15px;
+  text-align: center;
+  animation: fadeIn 1s ease;
+}
+
+input {
+  width: 90%;
+  padding: 10px;
+  margin: 10px;
+  border: none;
+  border-radius: 5px;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  background: #00c6ff;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0072ff;
+}
+
+/* Background Animation */
+.bg-animate {
+  background: linear-gradient(-45deg, #ff6a00, #ee0979, #00c6ff, #0072ff);
+  background-size: 400% 400%;
+  animation: gradientBG 10s ease infinite;
+}
+
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

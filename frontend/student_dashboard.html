@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-animate">
+
+<div style="position:absolute; top:20px; right:20px;">
+  <button onclick="logout()">Logout</button>
+</div>
+
+<div class="center">
+  <h2>Speaking Practice</h2>
+
+  <h3>Today's Topic:</h3>
+  <p id="topic"></p>
+
+  <button onclick="startRecording()">🎤 Start</button>
+  <button onclick="stopRecording()">Stop</button>
+
+  <br><br>
+  <button onclick="submitStudent()">Submit</button>
+</div>
+
+<script>
+const topic = localStorage.getItem("topic") || "No topic assigned";
+document.getElementById("topic").innerText = topic;
+
+let mediaRecorder;
+let audioChunks = [];
+let stream;   // 🔥 IMPORTANT
+
+async function startRecording() {
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+
+  mediaRecorder.start();
+
+  mediaRecorder.ondataavailable = e => {
+    audioChunks.push(e.data);
+  };
+}
+
+function stopRecording() {
+  mediaRecorder.stop();
+
+  // 🔥 STOP MICROPHONE COMPLETELY
+  stream.getTracks().forEach(track => track.stop());
+
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(audioChunks, { type: 'audio/wav' });
+    await uploadAudio(blob);
+    audioChunks = [];
+  };
+}
+
+// 🔗 REPLACE WITH YOUR RENDER URL
+const BACKEND_URL = "https://YOUR-BACKEND-URL";
+
+async function uploadAudio(blob) {
+  const formData = new FormData();
+  formData.append("audio", blob, "recording.wav");
+
+  await fetch(BACKEND_URL + "/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  alert("Audio uploaded!");
+}
+
+function submitStudent() {
+  let current = JSON.parse(localStorage.getItem("currentStudent"));
+  let students = JSON.parse(localStorage.getItem("students")) || [];
+
+  students.push(current);
+  localStorage.setItem("students", JSON.stringify(students));
+
+  alert("Submitted!");
+}
+
+function logout() {
+  window.location.href = "index.html";
+}
+</script>
+
+</body>
+</html>
