@@ -47,7 +47,17 @@ app.get("/audios", (req, res) => {
   fs.readdir(uploadPath, (err, files) => {
     if (err) return res.json([]);
 
-    res.json(files); // simple array
+    const data = files.map(file => {
+      const parts = file.split("_");
+
+      return {
+        name: parts[0] || "Unknown",
+        pin: parts[1] || "----",
+        file: file
+      };
+    });
+
+    res.json(data);
   });
 });
 
