@@ -2,32 +2,208 @@
 <html>
 <head>
   <title>Teacher Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body class="bg-animate">
 
-<div style="position:absolute; top:20px; right:20px;">
-  <button onclick="logout()">Logout</button>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh;
+      background: linear-gradient(270deg, #141e30, #243b55, #6a11cb);
+      background-size: 600% 600%;
+      animation: bgMove 12s ease infinite;
+      color: white;
+    }
+
+    @keyframes bgMove {
+      0% { background-position: 0% }
+      50% { background-position: 100% }
+      100% { background-position: 0% }
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      padding: 20px 40px;
+      align-items: center;
+    }
+
+    .logout {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      background: #ff4b2b;
+      color: white;
+      transition: 0.3s;
+    }
+
+    .logout:hover {
+      transform: scale(1.1);
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 85vh;
+    }
+
+    .card {
+      width: 1000px;
+      padding: 30px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: fadeIn 1s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px);}
+      to { opacity: 1; transform: translateY(0);}
+    }
+
+    h2 {
+      text-align: center;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 20px 0;
+    }
+
+    .stat-box {
+      padding: 15px;
+      border-radius: 15px;
+      background: rgba(255,255,255,0.2);
+      text-align: center;
+      width: 30%;
+    }
+
+    .topic-box {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .topic-box input {
+      padding: 10px;
+      width: 60%;
+      border-radius: 10px;
+      border: none;
+    }
+
+    .topic-box button {
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      margin-left: 10px;
+      background: #00c6ff;
+      color: white;
+      cursor: pointer;
+    }
+
+    .search {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .search input {
+      padding: 10px;
+      width: 50%;
+      border-radius: 10px;
+      border: none;
+    }
+
+    .grid {
+      display: flex;
+      gap: 20px;
+    }
+
+    .section {
+      flex: 1;
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.2);
+    }
+
+    audio {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+  </style>
+</head>
+
+<body>
+
+<div class="header">
+  <h2>Teacher Dashboard</h2>
+  <button class="logout" onclick="logout()">Logout</button>
 </div>
 
-<div class="center">
-  <h2>Teacher Dashboard</h2>
+<div class="container">
+  <div class="card">
 
-  <h3>Assign Topic</h3>
-  <input id="newTopic" placeholder="Enter Topic">
-  <button onclick="saveTopic()">Submit</button>
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-box">
+        <h3 id="studentCount">0</h3>
+        <p>Students</p>
+      </div>
+      <div class="stat-box">
+        <h3 id="audioCount">0</h3>
+        <p>Audios</p>
+      </div>
+    </div>
 
-  <h3>Student List</h3>
-  <ul id="list"></ul>
+    <!-- Topic -->
+    <div class="topic-box">
+      <input id="newTopic" placeholder="Enter Topic">
+      <button onclick="saveTopic()">Submit</button>
+    </div>
 
-  <h3>Student Audios</h3>
-  <ul id="audioList"></ul>
+    <!-- Search -->
+    <div class="search">
+      <input id="searchBox" placeholder="Search student..." onkeyup="searchStudent()">
+    </div>
+
+    <div class="grid">
+
+      <!-- Students -->
+      <div class="section">
+        <h3>Students</h3>
+        <ul id="list"></ul>
+      </div>
+
+      <!-- Audios -->
+      <div class="section">
+        <h3>Audios</h3>
+        <ul id="audioList"></ul>
+      </div>
+
+    </div>
+
+  </div>
 </div>
 
 <script>
 
-// 🔗 REPLACE WITH YOUR BACKEND URL
-const BACKEND_URL = "https://YOUR-BACKEND-URL";
+const BACKEND_URL = "https://speakup-backend-1.onrender.com";
 
 // Save topic
 function saveTopic() {
@@ -38,26 +214,53 @@ function saveTopic() {
 
 // Load students
 let students = JSON.parse(localStorage.getItem("students")) || [];
-document.getElementById("list").innerHTML =
-  students.map(s => `<li>${s.name} - ${s.pin}</li>`).join("");
 
-// Load audio files
+function displayStudents(data) {
+  document.getElementById("list").innerHTML =
+    data.map(s => `<li>${s.name} - ${s.pin}</li>`).join("");
+  document.getElementById("studentCount").innerText = data.length;
+}
+
+displayStudents(students);
+
+// Search
+function searchStudent() {
+  const val = document.getElementById("searchBox").value.toLowerCase();
+  const filtered = students.filter(s =>
+    s.name.toLowerCase().includes(val) || s.pin.includes(val)
+  );
+  displayStudents(filtered);
+}
+
+// Load audios
 async function loadAudios() {
-  const res = await fetch(BACKEND_URL + "/audios");
-  const files = await res.json();
+  try {
+    const res = await fetch(BACKEND_URL + "/audios");
+    const files = await res.json();
 
-  const list = files.map(f =>
-    `<li><audio controls src="${BACKEND_URL}/${f}"></audio></li>`
-  ).join("");
+    document.getElementById("audioCount").innerText = files.length;
 
-  document.getElementById("audioList").innerHTML = list;
+    const list = files.map(f =>
+      `<li>
+        ${f}
+        <audio controls src="${BACKEND_URL}/${f}"></audio>
+      </li>`
+    ).join("");
+
+    document.getElementById("audioList").innerHTML = list;
+
+  } catch {
+    document.getElementById("audioList").innerHTML = "<li>Error loading audios</li>";
+  }
 }
 
 loadAudios();
 
+// Logout
 function logout() {
   window.location.href = "index.html";
 }
+
 </script>
 
 </body>

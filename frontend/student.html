@@ -2,9 +2,98 @@
 <html>
 <head>
   <title>Student Login</title>
-  <link rel="stylesheet" href="style.css">
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', sans-serif;
+
+      background: linear-gradient(270deg, #ff6a00, #ee0979, #00c6ff);
+      background-size: 600% 600%;
+      animation: gradientMove 12s ease infinite;
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% }
+      50% { background-position: 100% }
+      100% { background-position: 0% }
+    }
+
+    /* Login Box */
+    .login-box {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 40px;
+      border-radius: 20px;
+      width: 320px;
+      text-align: center;
+      backdrop-filter: blur(15px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      color: white;
+
+      animation: fadeIn 1.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-box h2 {
+      margin-bottom: 20px;
+    }
+
+    /* Inputs */
+    .login-box input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+
+    .login-box input::placeholder {
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Button */
+    .login-box button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 25px;
+      background: linear-gradient(45deg, #00c6ff, #0072ff);
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .login-box button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255,255,255,0.6);
+    }
+
+  </style>
+
 </head>
-<body class="bg-animate">
+
+<body>
 
 <div class="login-box">
   <h2>Student Login</h2>
@@ -20,7 +109,6 @@ function loginStudent() {
   const pin = document.getElementById("pin").value;
   const branch = document.getElementById("branch").value;
 
-  // store temporarily (not adding to list yet)
   localStorage.setItem("currentStudent", JSON.stringify({ name, pin, branch }));
 
   window.location.href = "student_dashboard.html";

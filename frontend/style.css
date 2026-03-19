@@ -1,72 +1,152 @@
+/* RESET */
 body {
   margin: 0;
   font-family: Arial;
-  color: white;
 }
 
-nav {
+/* BACKGROUND */
+.bg-animate {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  background: linear-gradient(270deg, #ff416c, #ff4b2b, #ff6a00);
+  background-size: 600% 600%;
+  animation: gradient 8s ease infinite;
+}
+
+@keyframes gradient {
+  0% {background-position: 0%}
+  50% {background-position: 100%}
+  100% {background-position: 0%}
+}
+
+/* CONTAINER */
+.container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* MAIN CARD */
+.card-main {
+  width: 380px;
+  padding: 25px;
+  border-radius: 20px;
+
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(15px);
+
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+/* HEADER */
+.header {
   display: flex;
   justify-content: space-between;
-  padding: 15px;
-  background: rgba(0,0,0,0.5);
+  align-items: center;
 }
 
-nav a {
+.header h2 {
   color: white;
-  margin: 10px;
-  text-decoration: none;
 }
 
-.center {
-  text-align: center;
-  margin-top: 10%;
-}
-
-.login-box {
-  width: 300px;
-  margin: 150px auto;
-  padding: 30px;
-  background: rgba(0,0,0,0.6);
-  border-radius: 15px;
-  text-align: center;
-  animation: fadeIn 1s ease;
-}
-
-input {
-  width: 90%;
-  padding: 10px;
-  margin: 10px;
+/* LOGOUT BUTTON (FIXED DESIGN) */
+.logout {
+  background: rgba(255,255,255,0.2);
   border: none;
-  border-radius: 5px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
 }
 
-button {
-  padding: 10px 20px;
+.logout:hover {
+  background: red;
+  transform: scale(1.1);
+}
+
+/* WELCOME */
+.welcome {
+  text-align: center;
+  color: white;
+  margin: 15px 0;
+}
+
+/* TOPIC */
+.topic-box {
+  background: rgba(255,255,255,0.15);
+  padding: 12px;
+  border-radius: 10px;
+  color: white;
+  text-align: center;
+}
+
+/* STATUS */
+.status {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: white;
+}
+
+#dot {
+  width: 10px;
+  height: 10px;
+  background: gray;
+  border-radius: 50%;
+}
+
+/* TIMER */
+#timer {
+  text-align: center;
+  color: white;
+  font-size: 28px;
+}
+
+/* BUTTONS */
+.btns {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.btns button {
+  padding: 8px 12px;
   border: none;
-  border-radius: 5px;
+  border-radius: 10px;
   background: #00c6ff;
   color: white;
   cursor: pointer;
+  transition: 0.3s;
 }
 
-button:hover {
+.btns button:hover {
+  transform: scale(1.1);
   background: #0072ff;
 }
 
-/* Background Animation */
-.bg-animate {
-  background: linear-gradient(-45deg, #ff6a00, #ee0979, #00c6ff, #0072ff);
-  background-size: 400% 400%;
-  animation: gradientBG 10s ease infinite;
+/* AUDIO */
+audio {
+  width: 100%;
 }
-
-@keyframes gradientBG {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+.speech-box {
+  background: rgba(255,255,255,0.15);
+  padding: 12px;
+  border-radius: 10px;
+  color: white;
+  margin-top: 10px;
+  text-align: center;
 }
