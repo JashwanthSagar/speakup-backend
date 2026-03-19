@@ -24,21 +24,15 @@
       display: flex;
       justify-content: space-between;
       padding: 20px 40px;
-      align-items: center;
     }
 
     .logout {
       padding: 10px 18px;
       border: none;
       border-radius: 20px;
-      cursor: pointer;
       background: #ff4b2b;
       color: white;
-      transition: 0.3s;
-    }
-
-    .logout:hover {
-      transform: scale(1.1);
+      cursor: pointer;
     }
 
     .container {
@@ -49,28 +43,17 @@
     }
 
     .card {
-      width: 1000px;
+      width: 900px;
       padding: 30px;
       border-radius: 20px;
       background: rgba(255,255,255,0.1);
       backdrop-filter: blur(20px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      animation: fadeIn 1s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(30px);}
-      to { opacity: 1; transform: translateY(0);}
-    }
-
-    h2 {
-      text-align: center;
     }
 
     .stats {
       display: flex;
-      justify-content: space-around;
-      margin: 20px 0;
+      justify-content: center;
+      margin-bottom: 20px;
     }
 
     .stat-box {
@@ -78,9 +61,10 @@
       border-radius: 15px;
       background: rgba(255,255,255,0.2);
       text-align: center;
-      width: 30%;
+      width: 200px;
     }
 
+    /* 🔥 Topic Box */
     .topic-box {
       text-align: center;
       margin-bottom: 20px;
@@ -103,47 +87,28 @@
       cursor: pointer;
     }
 
-    .search {
+    table {
+      width: 100%;
+      border-collapse: collapse;
       text-align: center;
-      margin-bottom: 15px;
     }
 
-    .search input {
+    th {
+      background: rgba(255,255,255,0.3);
       padding: 10px;
-      width: 50%;
-      border-radius: 10px;
-      border: none;
     }
 
-    .grid {
-      display: flex;
-      gap: 20px;
-    }
-
-    .section {
-      flex: 1;
+    td {
+      padding: 10px;
       background: rgba(255,255,255,0.1);
-      padding: 15px;
-      border-radius: 15px;
-      max-height: 300px;
-      overflow-y: auto;
     }
 
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    li {
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 10px;
+    tr:hover td {
       background: rgba(255,255,255,0.2);
     }
 
     audio {
       width: 100%;
-      margin-top: 5px;
     }
 
   </style>
@@ -162,41 +127,30 @@
     <!-- Stats -->
     <div class="stats">
       <div class="stat-box">
-        <h3 id="studentCount">0</h3>
-        <p>Students</p>
-      </div>
-      <div class="stat-box">
         <h3 id="audioCount">0</h3>
-        <p>Audios</p>
+        <p>Total Audios</p>
       </div>
     </div>
 
-    <!-- Topic -->
+    <!-- ✅ Topic Posting -->
     <div class="topic-box">
       <input id="newTopic" placeholder="Enter Topic">
       <button onclick="saveTopic()">Submit</button>
     </div>
 
-    <!-- Search -->
-    <div class="search">
-      <input id="searchBox" placeholder="Search student..." onkeyup="searchStudent()">
-    </div>
+    <!-- Audio Table -->
+    <h3 style="text-align:center;">Student Recordings</h3>
 
-    <div class="grid">
-
-      <!-- Students -->
-      <div class="section">
-        <h3>Students</h3>
-        <ul id="list"></ul>
-      </div>
-
-      <!-- Audios -->
-      <div class="section">
-        <h3>Audios</h3>
-        <ul id="audioList"></ul>
-      </div>
-
-    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>PIN</th>
+          <th>Audio</th>
+        </tr>
+      </thead>
+      <tbody id="audioList"></tbody>
+    </table>
 
   </div>
 </div>
@@ -205,52 +159,38 @@
 
 const BACKEND_URL = "https://speakup-backend-1.onrender.com";
 
-// Save topic
+// ✅ Save topic
 function saveTopic() {
   const topic = document.getElementById("newTopic").value;
   localStorage.setItem("topic", topic);
   alert("Topic saved!");
 }
 
-// Load students
-let students = JSON.parse(localStorage.getItem("students")) || [];
-
-function displayStudents(data) {
-  document.getElementById("list").innerHTML =
-    data.map(s => `<li>${s.name} - ${s.pin}</li>`).join("");
-  document.getElementById("studentCount").innerText = data.length;
-}
-
-displayStudents(students);
-
-// Search
-function searchStudent() {
-  const val = document.getElementById("searchBox").value.toLowerCase();
-  const filtered = students.filter(s =>
-    s.name.toLowerCase().includes(val) || s.pin.includes(val)
-  );
-  displayStudents(filtered);
-}
-
-// Load audios
+// 🔥 Load audios
 async function loadAudios() {
   try {
     const res = await fetch(BACKEND_URL + "/audios");
-    const files = await res.json();
+    const data = await res.json();
 
-    document.getElementById("audioCount").innerText = files.length;
+    document.getElementById("audioCount").innerText = data.length;
 
-    const list = files.map(f =>
-      `<li>
-        ${f}
-        <audio controls src="${BACKEND_URL}/${f}"></audio>
-      </li>`
-    ).join("");
+    const rows = data.map(item => {
+      return `
+        <tr>
+          <td>${item.name}</td>
+          <td>${item.pin}</td>
+          <td>
+            <audio controls src="${BACKEND_URL}/uploads/${item.file}"></audio>
+          </td>
+        </tr>
+      `;
+    }).join("");
 
-    document.getElementById("audioList").innerHTML = list;
+    document.getElementById("audioList").innerHTML = rows;
 
   } catch {
-    document.getElementById("audioList").innerHTML = "<li>Error loading audios</li>";
+    document.getElementById("audioList").innerHTML =
+      `<tr><td colspan="3">Error loading audios</td></tr>`;
   }
 }
 
