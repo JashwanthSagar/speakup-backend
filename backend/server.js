@@ -59,8 +59,8 @@ app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
 
-    if (!text) {
-      return res.json({ corrected: "No text provided" });
+    if (!text || text.trim() === "") {
+      return res.json({ corrected: "No speech detected" });
     }
 
     const response = await openai.chat.completions.create({
@@ -77,13 +77,18 @@ app.post("/correct", async (req, res) => {
       ]
     });
 
-    const corrected = response.choices[0].message.content;
+    const corrected =
+      response.choices?.[0]?.message?.content || "No correction found";
 
     res.json({ corrected });
 
   } catch (err) {
-    console.log("AI ERROR FULL:", err); // 👈 important
-    res.json({ corrected: "Error correcting text" });
+    console.log("🔥 AI ERROR FULL:", err);
+
+    // 👇 send actual error message to frontend
+    res.json({
+      corrected: "AI Error: " + (err.message || "Unknown error")
+    });
   }
 });
 
