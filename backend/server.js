@@ -11,7 +11,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// OpenAI Setup
+// ✅ OpenAI Setup (ONLY ONCE)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -25,7 +25,7 @@ if (!fs.existsSync(uploadPath)) {
 // Multer setup
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/");
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const name = req.body.name || "student";
@@ -37,39 +37,38 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Upload API
+// ✅ Upload API
 app.post("/upload", upload.single("audio"), (req, res) => {
   res.json({ message: "File uploaded successfully" });
 });
 
-// Get all audios
+// ✅ Get all audios
 app.get("/audios", (req, res) => {
   fs.readdir(uploadPath, (err, files) => {
     if (err) return res.json([]);
 
-    const fileList = files.map(file => ({
-      name: file,
-      url: "/uploads/" + file
-    }));
-
-    res.json(fileList);
+    res.json(files); // simple array
   });
 });
 
-// Serve uploads
+// ✅ Serve uploads
 app.use("/uploads", express.static(uploadPath));
 
-// 🔥 AI Grammar Correction API
+// ✅ AI Grammar Correction API
 app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
+
+    if (!text) {
+      return res.json({ corrected: "No text provided" });
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "Correct the grammar and return only the corrected sentence."
+          content: "Correct the grammar and return only corrected sentence."
         },
         {
           role: "user",
@@ -78,16 +77,17 @@ app.post("/correct", async (req, res) => {
       ]
     });
 
-    res.json({
-      corrected: response.choices[0].message.content
-    });
+    const corrected = response.choices[0].message.content;
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ corrected: "Error correcting text" });
+    res.json({ corrected });
+
+  } catch (err) {
+    console.log("AI ERROR FULL:", err); // 👈 important
+    res.json({ corrected: "Error correcting text" });
   }
 });
 
+// ✅ Start server
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
