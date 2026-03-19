@@ -64,7 +64,7 @@ let finalTranscript = "";
 const BACKEND_URL = "https://speakup-backend-1.onrender.com";
 
 // Load student
-const student = JSON.parse(localStorage.getItem("student"));
+const student = JSON.parse(localStorage.getItem("currentStudent"));
 if (student) {
   document.getElementById("welcomeText").innerText =
     "Welcome, " + student.name;
@@ -131,8 +131,13 @@ function stopRecording() {
   document.getElementById("dot").style.background = "gray";
 
   setTimeout(async () => {
-    let original = finalTranscript || "No speech detected";
+    let original = finalTranscript.trim();
 
+	if (!original) {
+	  document.getElementById("speechText").innerText = "No speech detected";
+	  document.getElementById("correctedText").innerText = "Speak something first!";
+	  return;
+	}
     document.getElementById("speechText").innerText = original;
 
     // 🔥 AI Correction
@@ -150,10 +155,11 @@ function stopRecording() {
       document.getElementById("correctedText").innerText =
         data.corrected;
 
-    } catch {
-      document.getElementById("correctedText").innerText =
-        "AI Error";
-    }
+    } catch (err) {
+  console.log("Frontend AI Error:", err);
+  document.getElementById("correctedText").innerText =
+    "AI Error - Check console";
+}
 
   }, 500);
 
