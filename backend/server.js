@@ -27,7 +27,6 @@ if (!fs.existsSync(uploadPath))  fs.mkdirSync(uploadPath);
 if (!fs.existsSync(recordsPath)) fs.writeFileSync(recordsPath, "[]");
 if (!fs.existsSync(topicsPath))  fs.writeFileSync(topicsPath,  "[]");
 
-// state.json holds: currentTopic, topicIndex, lastTopicDate, lastClearDate
 if (!fs.existsSync(statePath)) {
   fs.writeFileSync(statePath, JSON.stringify({
     currentTopic:  "No topic assigned yet",
@@ -43,81 +42,62 @@ function writeState(s) { fs.writeFileSync(statePath, JSON.stringify(s, null, 2))
 function readTopics()  { return JSON.parse(fs.readFileSync(topicsPath)); }
 function todayStr()    { return new Date().toISOString().slice(0, 10); }
 
-// ────────────────────────────────────────────────────
-// AUTO CLEAR every 24 hours
-// Deletes all audio files and clears records.json
-// ────────────────────────────────────────────────────
+// ── Auto clear every 24 hours ──
 function autoClearIfNeeded() {
   const state = readState();
   const today = todayStr();
   if (state.lastClearDate === today) return;
-
   console.log("[AutoClear] Running for", today);
   try {
     fs.readdirSync(uploadPath).forEach(f =>
       fs.unlinkSync(path.join(uploadPath, f))
     );
-  } catch (e) { console.error("[AutoClear] File delete error:", e); }
-
+  } catch (e) { console.error("[AutoClear] Error:", e); }
   fs.writeFileSync(recordsPath, "[]");
   state.lastClearDate = today;
   writeState(state);
   console.log("[AutoClear] Done.");
 }
 
-// ────────────────────────────────────────────────────
-// AUTO TOPIC PICK every day
-// Cycles through the topics list in order, one per day
-// ────────────────────────────────────────────────────
+// ── Auto topic pick every day ──
 function autoPickTopicIfNeeded() {
   const state  = readState();
   const topics = readTopics();
   const today  = todayStr();
-
   if (state.lastTopicDate === today) return;
   if (topics.length === 0) return;
-
-  const nextIndex        = state.topicIndex % topics.length;
-  state.currentTopic     = topics[nextIndex];
-  state.topicIndex       = nextIndex + 1;
+  const idx              = state.topicIndex % topics.length;
+  state.currentTopic     = topics[idx];
+  state.topicIndex       = idx + 1;
   state.lastTopicDate    = today;
   writeState(state);
-  console.log("[AutoTopic]", today, "→", state.currentTopic);
+  console.log("[AutoTopic]", today, "->", state.currentTopic);
 }
 
-// Run both at startup and every hour
 autoClearIfNeeded();
 autoPickTopicIfNeeded();
-setInterval(() => {
-  autoClearIfNeeded();
-  autoPickTopicIfNeeded();
-}, 60 * 60 * 1000);
+setInterval(() => { autoClearIfNeeded(); autoPickTopicIfNeeded(); }, 60 * 60 * 1000);
 
-// ── Multer ──
-// NOTE: No fileFilter here — mobile Chrome sometimes sends mimetype as
-// "application/octet-stream" for audio blobs, which would get rejected.
-// We accept all files and handle validation inside each route.
+// ── Multer — no fileFilter, mobile sends various mimetypes ──
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits:  { fileSize: 25 * 1024 * 1024 }
 });
 
-// ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // ROUTES
-// ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 
-// POST /upload — student submits audio
+// POST /upload
 app.post("/upload", upload.single("audio"), (req, res) => {
   try {
     const name     = (req.body.name || "student").replace(/[^a-zA-Z0-9]/g, "_");
     const pin      = (req.body.pin  || "0000").replace(/[^a-zA-Z0-9]/g, "_");
     const fileName = name + "_" + pin + "_" + Date.now() + ".webm";
     fs.writeFileSync(path.join(uploadPath, fileName), req.file.buffer);
-
     const records = JSON.parse(fs.readFileSync(recordsPath));
     records.push({ name: req.body.name, pin: req.body.pin, file: fileName });
     fs.writeFileSync(recordsPath, JSON.stringify(records, null, 2));
-
     res.json({ message: "Uploaded successfully" });
   } catch (err) {
     console.error("Upload error:", err);
@@ -125,18 +105,16 @@ app.post("/upload", upload.single("audio"), (req, res) => {
   }
 });
 
-// GET /audios — teacher fetches all recordings
+// GET /audios
 app.get("/audios", (req, res) => {
   try { res.json(JSON.parse(fs.readFileSync(recordsPath))); }
   catch { res.json([]); }
 });
 
-// DELETE /clear-all — teacher manually clears everything
+// DELETE /clear-all
 app.delete("/clear-all", (req, res) => {
   try {
-    fs.readdirSync(uploadPath).forEach(f =>
-      fs.unlinkSync(path.join(uploadPath, f))
-    );
+    fs.readdirSync(uploadPath).forEach(f => fs.unlinkSync(path.join(uploadPath, f)));
     fs.writeFileSync(recordsPath, "[]");
     const state = readState();
     state.lastClearDate = todayStr();
@@ -150,41 +128,36 @@ app.delete("/clear-all", (req, res) => {
 // Serve audio files
 app.use("/uploads", express.static(uploadPath));
 
-// GET /get-topic — student gets today's topic
+// GET /get-topic
 app.get("/get-topic", (req, res) => {
   res.json({ topic: readState().currentTopic });
 });
 
-// GET /get-topics — teacher gets the full topic list
+// GET /get-topics
 app.get("/get-topics", (req, res) => {
   res.json({ topics: readTopics() });
 });
 
-// POST /set-topics — teacher saves full topic list
+// POST /set-topics
 app.post("/set-topics", (req, res) => {
   const { topics } = req.body;
   if (!Array.isArray(topics))
     return res.status(400).json({ error: "topics must be an array" });
-
   const cleaned = topics.map(t => t.trim()).filter(t => t.length > 0);
   fs.writeFileSync(topicsPath, JSON.stringify(cleaned, null, 2));
-
-  // Reset index so next day picks from beginning of new list
   const state = readState();
   state.topicIndex    = 0;
-  state.lastTopicDate = ""; // force re-pick today
+  state.lastTopicDate = "";
   writeState(state);
   autoPickTopicIfNeeded();
-
   res.json({ message: "Topics saved", count: cleaned.length });
 });
 
-// POST /set-topic — teacher manually overrides today's topic
+// POST /set-topic
 app.post("/set-topic", (req, res) => {
   const { topic } = req.body;
   if (!topic || topic.trim() === "")
     return res.status(400).json({ error: "Topic cannot be empty" });
-
   const state = readState();
   state.currentTopic  = topic.trim();
   state.lastTopicDate = todayStr();
@@ -192,7 +165,7 @@ app.post("/set-topic", (req, res) => {
   res.json({ message: "Topic set", topic: state.currentTopic });
 });
 
-// GET /status — debug info
+// GET /status
 app.get("/status", (req, res) => {
   const state  = readState();
   const topics = readTopics();
@@ -206,56 +179,99 @@ app.get("/status", (req, res) => {
   });
 });
 
-// POST /correct — AI grammar correction
-
-// POST /transcribe — Whisper transcription for mobile devices
+// ─────────────────────────────────────────────
+// POST /transcribe  — Whisper for mobile
+// ─────────────────────────────────────────────
 app.post("/transcribe", upload.single("audio"), async (req, res) => {
   let tempPath = null;
+
   try {
-    if (!req.file) {
-      console.error("[Transcribe] No file in request");
-      return res.status(400).json({ error: "No audio file received" });
+    if (!req.file || !req.file.buffer) {
+      console.error("[Transcribe] No file received");
+      return res.status(400).json({ error: "No audio received" });
     }
 
-    const bufferSize = req.file.buffer.length;
-    const mimetype   = req.file.mimetype || "";
-    console.log("[Transcribe] Received file — size:", bufferSize, "mime:", mimetype);
+    const size = req.file.buffer.length;
+    const mime = req.file.mimetype || "";
+    console.log("[Transcribe] size:", size, "mime:", mime);
 
-    if (bufferSize < 1000) {
-      console.warn("[Transcribe] File too small:", bufferSize, "bytes");
+    // Too small = nothing recorded
+    if (size < 1000) {
+      console.warn("[Transcribe] File too small:", size);
       return res.json({ transcript: "" });
     }
 
-    // Determine extension — default to webm (works with Whisper)
-    // Mobile Chrome sends audio/webm or application/octet-stream
+    // Pick file extension based on mime
+    // Mobile Chrome = audio/webm, iOS Safari = audio/mp4
     let ext = "webm";
-    if (mimetype.includes("ogg"))  ext = "ogg";
-    if (mimetype.includes("mp4"))  ext = "mp4";
-    if (mimetype.includes("mpeg")) ext = "mp3";
-    if (mimetype.includes("wav"))  ext = "wav";
-    // If mimetype is unknown/octet-stream, default to webm (most common on Android)
+    if (mime.includes("mp4") || mime.includes("m4a")) ext = "mp4";
+    else if (mime.includes("ogg"))                    ext = "ogg";
+    else if (mime.includes("wav"))                    ext = "wav";
+    else if (mime.includes("mpeg") || mime.includes("mp3")) ext = "mp3";
 
+    // Write to temp file — Whisper requires a real file stream
     tempPath = path.join(__dirname, "temp_" + Date.now() + "." + ext);
     fs.writeFileSync(tempPath, req.file.buffer);
-    console.log("[Transcribe] Temp file written:", tempPath);
+    console.log("[Transcribe] Temp file:", tempPath, "size:", fs.statSync(tempPath).size);
+
+    // Call Whisper using file stream
+    const fileStream = fs.createReadStream(tempPath);
+    fileStream.path   = "recording." + ext; // SDK uses .path to set filename
 
     const response = await openai.audio.transcriptions.create({
-      file:     fs.createReadStream(tempPath),
+      file:     fileStream,
       model:    "whisper-1",
       language: "en"
     });
 
-    if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    console.log("[Transcribe] Success:", response.text);
-    res.json({ transcript: response.text || "" });
+    // Clean up
+    try { fs.unlinkSync(tempPath); } catch {}
+    tempPath = null;
+
+    const transcript = (response.text || "").trim();
+    console.log("[Transcribe] OK:", transcript.substring(0, 80));
+    res.json({ transcript });
 
   } catch (err) {
-    console.error("[Transcribe] Error:", err.message, err.status || "");
-    if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    res.status(500).json({ error: "Transcription failed: " + err.message });
+    // Clean up temp file
+    if (tempPath) { try { fs.unlinkSync(tempPath); } catch {} }
+
+    console.error("[Transcribe] FAILED:", err.message);
+    console.error("[Transcribe] Status:", err.status || "none");
+    console.error("[Transcribe] Detail:", JSON.stringify(err.error || {}));
+
+    // If webm failed, try once more sending as mp4 (helps with some iOS recordings)
+    if (req.file && req.file.buffer && ext !== "mp4") {
+      try {
+        console.log("[Transcribe] Retrying as mp4...");
+        const retryPath = path.join(__dirname, "retry_" + Date.now() + ".mp4");
+        fs.writeFileSync(retryPath, req.file.buffer);
+        const retryStream  = fs.createReadStream(retryPath);
+        retryStream.path   = "recording.mp4";
+        const r2 = await openai.audio.transcriptions.create({
+          file:     retryStream,
+          model:    "whisper-1",
+          language: "en"
+        });
+        try { fs.unlinkSync(retryPath); } catch {}
+        const t2 = (r2.text || "").trim();
+        console.log("[Transcribe] Retry OK:", t2.substring(0, 80));
+        return res.json({ transcript: t2 });
+      } catch (retryErr) {
+        console.error("[Transcribe] Retry failed:", retryErr.message);
+      }
+    }
+
+    res.status(500).json({
+      error:  "Transcription failed: " + err.message,
+      detail: err.status || err.code || "unknown"
+    });
   }
 });
 
+// ─────────────────────────────────────────────
+// POST /correct — AI grammar correction
+// ─────────────────────────────────────────────
 app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
@@ -279,5 +295,5 @@ app.post("/correct", async (req, res) => {
   }
 });
 
-// Start server
+// ── Start ──
 app.listen(PORT, () => console.log("SpeakUp server running on port " + PORT));
