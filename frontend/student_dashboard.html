@@ -29,12 +29,18 @@
     <h2 id="timer">00:00</h2>
 
     <div class="btns">
-      <button id="startBtn" onclick="startRecording()">🎙 Start</button>
-      <button id="stopBtn"  onclick="stopRecording()" disabled>⏹ Stop</button>
-      <button id="submitBtn" onclick="submitAudio()" disabled>📤 Submit</button>
+      <button id="startBtn"  onclick="startRecording()">🎙 Start</button>
+      <button id="stopBtn"   onclick="stopRecording()"  disabled>⏹ Stop</button>
+      <button id="submitBtn" onclick="submitAudio()"    disabled>📤 Submit</button>
     </div>
 
     <audio id="audioPlayback" controls style="display:none;"></audio>
+
+    <!-- Mobile notice — shown only when SpeechRecognition not available -->
+    <div id="mobileNotice" style="display:none;background:rgba(255,200,0,0.2);border-radius:10px;padding:10px 12px;margin-top:8px;color:white;font-size:13px;text-align:center;">
+      📱 Your browser doesn't support live transcription.<br>
+      Your speech will be transcribed automatically after you click Stop.
+    </div>
 
     <div class="speech-box">
       <h3>Your Speech 📝</h3>
@@ -52,18 +58,15 @@
 <script>
 const BACKEND_URL = "https://speakup-backend-1.onrender.com";
 
-// ── Guard: redirect to login if not logged in ──
+// ── Guard ──
 const student = JSON.parse(localStorage.getItem("currentStudent"));
-if (!student) {
-  window.location.href = "student.html";
-}
-
+if (!student) window.location.href = "student.html";
 document.getElementById("welcomeText").innerText = "Welcome, " + student.name + " 👋";
 
-// ── Fetch today's topic from backend ──
+// ── Load topic ──
 async function loadTopic() {
   try {
-    const res = await fetch(BACKEND_URL + "/get-topic");
+    const res  = await fetch(BACKEND_URL + "/get-topic");
     const data = await res.json();
     document.getElementById("topicText").innerText = data.topic || "No topic assigned yet";
   } catch {
@@ -73,28 +76,35 @@ async function loadTopic() {
 }
 loadTopic();
 
+// ── Detect if browser supports SpeechRecognition ──
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const hasSpeechAPI = !!SpeechRecognition;
+
+// Show mobile notice if no live transcription
+if (!hasSpeechAPI) {
+  document.getElementById("mobileNotice").style.display = "block";
+}
+
 // ── State ──
-let mediaRecorder = null;
-let audioChunks   = [];
-let timerInterval = null;
-let seconds       = 0;
-let recognition   = null;
-let finalTranscript = "";
+let mediaRecorder    = null;
+let audioChunks      = [];
+let timerInterval    = null;
+let seconds          = 0;
+let recognition      = null;
+let finalTranscript  = "";
 
-// ── Speech Recognition setup ──
+// ── Setup browser speech recognition (laptop/desktop only) ──
 function setupRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return null;
+  if (!hasSpeechAPI) return null;
 
-  const rec = new SpeechRecognition();
-  rec.continuous      = true;
-  rec.interimResults  = true;
-  rec.lang            = "en-IN";
+  const rec          = new SpeechRecognition();
+  rec.continuous     = true;
+  rec.interimResults = true;
+  rec.lang           = "en-IN";
 
   rec.onresult = function(event) {
     let interim = "";
     finalTranscript = "";
-    // BUG FIX: only accumulate final results to avoid duplicates
     for (let i = 0; i < event.results.length; i++) {
       if (event.results[i].isFinal) {
         finalTranscript += event.results[i][0].transcript + " ";
@@ -107,10 +117,26 @@ function setupRecognition() {
   };
 
   rec.onerror = function(e) {
-    console.error("Speech recognition error:", e.error);
+    console.warn("SpeechRecognition error:", e.error);
   };
 
   return rec;
+}
+
+// ── Pick best audio MIME type for this device ──
+function getSupportedMimeType() {
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+    ""   // browser default
+  ];
+  for (const type of types) {
+    if (type === "" || MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return "";
 }
 
 // ── Start Recording ──
@@ -118,42 +144,52 @@ async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    audioChunks      = [];
-    finalTranscript  = "";
-    seconds          = 0;
+    audioChunks     = [];
+    finalTranscript = "";
+    seconds         = 0;
 
-    document.getElementById("speechText").innerText    = "Listening...";
+    document.getElementById("speechText").innerText    = hasSpeechAPI ? "Listening..." : "Recording... transcript will appear after you stop.";
     document.getElementById("correctedText").innerText = "AI correction will appear after you stop...";
     document.getElementById("audioPlayback").style.display = "none";
 
-    mediaRecorder = new MediaRecorder(stream);
+    const mimeType    = getSupportedMimeType();
+    const recOptions  = mimeType ? { mimeType } : {};
+    mediaRecorder     = new MediaRecorder(stream, recOptions);
 
-    // BUG FIX: register onstop BEFORE calling start
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) audioChunks.push(e.data);
     };
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunks, { type: "audio/webm" });
-      window.audioBlob = blob;
-      const audioEl = document.getElementById("audioPlayback");
-      audioEl.src = URL.createObjectURL(blob);
+    mediaRecorder.onstop = async () => {
+      // Build the blob with the actual mime type used
+      const usedMime = mediaRecorder.mimeType || "audio/webm";
+      const blob     = new Blob(audioChunks, { type: usedMime });
+      window.audioBlob      = blob;
+      window.audioBlobMime  = usedMime;
+
+      const audioEl  = document.getElementById("audioPlayback");
+      audioEl.src    = URL.createObjectURL(blob);
       audioEl.style.display = "block";
-      // Enable submit only once blob is ready
       document.getElementById("submitBtn").disabled = false;
+
+      // ── If no browser SpeechRecognition (mobile) → use Whisper ──
+      if (!hasSpeechAPI || !finalTranscript.trim()) {
+        await transcribeWithWhisper(blob, usedMime);
+      }
     };
 
-    mediaRecorder.start();
+    mediaRecorder.start(250); // collect data every 250ms for reliability on mobile
 
+    // Start browser speech recognition on desktop
     recognition = setupRecognition();
     if (recognition) recognition.start();
 
-    // UI state
-    document.getElementById("statusText").innerText = "Recording...";
-    document.getElementById("dot").style.background = "red";
-    document.getElementById("startBtn").disabled    = true;
-    document.getElementById("stopBtn").disabled     = false;
-    document.getElementById("submitBtn").disabled   = true;
+    // UI
+    document.getElementById("statusText").innerText   = "Recording...";
+    document.getElementById("dot").style.background   = "red";
+    document.getElementById("startBtn").disabled      = true;
+    document.getElementById("stopBtn").disabled       = false;
+    document.getElementById("submitBtn").disabled     = true;
 
     timerInterval = setInterval(() => {
       seconds++;
@@ -165,14 +201,13 @@ async function startRecording() {
     window.activeStream = stream;
 
   } catch (err) {
-    alert("Microphone access is required to record. Please allow microphone permission and try again.");
+    alert("Microphone access is required. Please allow microphone permission and try again.");
     console.error("Mic error:", err);
   }
 }
 
 // ── Stop Recording ──
 async function stopRecording() {
-  // BUG FIX: guard against calling stop before start
   if (!mediaRecorder || mediaRecorder.state === "inactive") return;
 
   mediaRecorder.stop();
@@ -185,32 +220,66 @@ async function stopRecording() {
     try { recognition.stop(); } catch(e) {}
   }
 
-  // UI state
-  document.getElementById("statusText").innerText = "Stopped";
-  document.getElementById("dot").style.background = "gray";
-  document.getElementById("startBtn").disabled    = false;
-  document.getElementById("stopBtn").disabled     = true;
+  document.getElementById("statusText").innerText   = "Processing...";
+  document.getElementById("dot").style.background   = "orange";
+  document.getElementById("startBtn").disabled      = false;
+  document.getElementById("stopBtn").disabled       = true;
 
-  // Wait a moment for recognition to flush final results
-  await new Promise(r => setTimeout(r, 600));
+  // Wait for onstop to fire and blob to be built
+  await new Promise(r => setTimeout(r, 800));
 
-  const original = finalTranscript.trim();
-
-  if (!original) {
-    document.getElementById("speechText").innerText    = "No speech detected. Please try again.";
-    document.getElementById("correctedText").innerText = "Nothing to correct.";
-    return;
+  // If desktop speech recognition got a transcript — process it now
+  if (hasSpeechAPI && finalTranscript.trim()) {
+    await processTranscript(finalTranscript.trim());
   }
 
-  document.getElementById("speechText").innerText    = original;
-  document.getElementById("correctedText").innerText = "Correcting...";
+  document.getElementById("statusText").innerText = "Stopped";
+  document.getElementById("dot").style.background = "gray";
+}
 
-  // ── AI Grammar Correction ──
+// ── Whisper transcription (for mobile / fallback) ──
+async function transcribeWithWhisper(blob, mimeType) {
+  document.getElementById("speechText").innerText = "Transcribing your speech... ⏳";
+
+  // Determine file extension from mime type
+  let ext = "webm";
+  if (mimeType.includes("ogg"))  ext = "ogg";
+  if (mimeType.includes("mp4"))  ext = "mp4";
+
+  const formData = new FormData();
+  formData.append("audio", blob, "recording." + ext);
+
   try {
-    const res = await fetch(BACKEND_URL + "/correct", {
+    const res  = await fetch(BACKEND_URL + "/transcribe", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.transcript && data.transcript.trim()) {
+      finalTranscript = data.transcript;
+      await processTranscript(finalTranscript.trim());
+    } else {
+      document.getElementById("speechText").innerText    = "No speech detected. Please try again.";
+      document.getElementById("correctedText").innerText = "Nothing to correct.";
+    }
+  } catch (err) {
+    console.error("Whisper error:", err);
+    document.getElementById("speechText").innerText    = "Transcription failed. Check your connection.";
+    document.getElementById("correctedText").innerText = "Could not process speech.";
+  }
+}
+
+// ── Process transcript → show + AI correct ──
+async function processTranscript(text) {
+  document.getElementById("speechText").innerText    = text;
+  document.getElementById("correctedText").innerText = "Correcting grammar... ⏳";
+
+  try {
+    const res  = await fetch(BACKEND_URL + "/correct", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: original })
+      body: JSON.stringify({ text })
     });
     const data = await res.json();
     document.getElementById("correctedText").innerText = data.corrected || "No correction returned.";
@@ -226,21 +295,19 @@ async function submitAudio() {
     alert("Please record something first!");
     return;
   }
-
   const submitBtn = document.getElementById("submitBtn");
   submitBtn.disabled  = true;
   submitBtn.innerText = "Uploading...";
 
+  const ext      = (window.audioBlobMime || "audio/webm").includes("mp4") ? "mp4"
+                 : (window.audioBlobMime || "").includes("ogg") ? "ogg" : "webm";
   const formData = new FormData();
-  formData.append("audio", window.audioBlob, "recording.webm");
-  formData.append("name", student.name);
-  formData.append("pin",  student.pin);
+  formData.append("audio", window.audioBlob, "recording." + ext);
+  formData.append("name",  student.name);
+  formData.append("pin",   student.pin);
 
   try {
-    await fetch(BACKEND_URL + "/upload", {
-      method: "POST",
-      body: formData
-    });
+    await fetch(BACKEND_URL + "/upload", { method: "POST", body: formData });
     submitBtn.innerText = "✅ Submitted!";
     alert("Recording submitted successfully! ✅");
   } catch {
@@ -252,7 +319,6 @@ async function submitAudio() {
 
 // ── Logout ──
 function logout() {
-  // BUG FIX: correct key name "currentStudent"
   localStorage.removeItem("currentStudent");
   window.location.href = "index.html";
 }
