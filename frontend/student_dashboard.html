@@ -306,11 +306,29 @@ let isRecording     = false;
 
 // ── Pick best audio MIME type ──
 function getSupportedMimeType() {
-  const types = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg","audio/mp4",""];
+  // Priority: webm (best Whisper support) → ogg → mp4 → browser default
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+    ""
+  ];
   for (const t of types) {
     if (t === "" || MediaRecorder.isTypeSupported(t)) return t;
   }
   return "";
+}
+
+// ── Get file extension from mime type ──
+function getExt(mimeType) {
+  if (!mimeType) return "webm";
+  if (mimeType.includes("ogg"))  return "ogg";
+  if (mimeType.includes("mp4"))  return "mp4";
+  if (mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("wav"))  return "wav";
+  return "webm"; // default — works with Whisper
 }
 
 // ── Toggle mic (tap once = start, tap again = stop) ──
@@ -421,7 +439,7 @@ async function stopRecording() {
   document.getElementById("dot").style.background = "orange";
   document.getElementById("stopBtn").disabled     = true;
 
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 1500)); // wait longer on mobile for audio flush
 
   if (hasSpeechAPI && finalTranscript.trim()) {
     await processTranscript(finalTranscript.trim());
@@ -433,27 +451,46 @@ async function stopRecording() {
 
 // ── Whisper (mobile fallback) ──
 async function transcribeWithWhisper(blob, mimeType) {
-  document.getElementById("speechText").innerText = "Transcribing your speech... ⏳";
-  let ext = "webm";
-  if (mimeType.includes("ogg")) ext = "ogg";
-  if (mimeType.includes("mp4")) ext = "mp4";
+  document.getElementById("speechText").innerText = "Transcribing your speech... ⏳ (may take 10-15 seconds)";
+
+  const ext      = getExt(mimeType);
+  const filename = "recording." + ext;
+
+  console.log("[Whisper] blob size:", blob.size, "mime:", mimeType, "ext:", ext);
+
+  if (blob.size < 1000) {
+    document.getElementById("speechText").innerText    = "Recording was too short. Please speak for at least 2 seconds.";
+    document.getElementById("correctedText").innerText = "Nothing to correct.";
+    return;
+  }
 
   const formData = new FormData();
-  formData.append("audio", blob, "recording." + ext);
+  formData.append("audio", blob, filename);
 
   try {
-    const res  = await fetch(BACKEND_URL + "/transcribe", { method:"POST", body:formData });
+    const res  = await fetch(BACKEND_URL + "/transcribe", { method: "POST", body: formData });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[Whisper] Server error:", res.status, errText);
+      document.getElementById("speechText").innerText    = "Server error during transcription. Please try again.";
+      document.getElementById("correctedText").innerText = "Could not process speech.";
+      return;
+    }
+
     const data = await res.json();
+    console.log("[Whisper] Response:", data);
+
     if (data.transcript && data.transcript.trim()) {
       finalTranscript = data.transcript;
       await processTranscript(finalTranscript.trim());
     } else {
-      document.getElementById("speechText").innerText    = "No speech detected. Please try again.";
+      document.getElementById("speechText").innerText    = "No speech detected. Please speak clearly and try again.";
       document.getElementById("correctedText").innerText = "Nothing to correct.";
     }
   } catch (err) {
-    console.error("Whisper error:", err);
-    document.getElementById("speechText").innerText    = "Transcription failed. Check your connection.";
+    console.error("[Whisper] Fetch error:", err);
+    document.getElementById("speechText").innerText    = "Could not reach server. Check your internet connection.";
     document.getElementById("correctedText").innerText = "Could not process speech.";
   }
 }
