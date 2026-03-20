@@ -94,13 +94,12 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // ── Multer ──
+// NOTE: No fileFilter here — mobile Chrome sometimes sends mimetype as
+// "application/octet-stream" for audio blobs, which would get rejected.
+// We accept all files and handle validation inside each route.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("audio/")) cb(null, true);
-    else cb(new Error("Only audio files are allowed"), false);
-  }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 // ────────────────────────────────────────────────────
@@ -213,14 +212,32 @@ app.get("/status", (req, res) => {
 app.post("/transcribe", upload.single("audio"), async (req, res) => {
   let tempPath = null;
   try {
-    if (!req.file) return res.status(400).json({ error: "No audio file received" });
+    if (!req.file) {
+      console.error("[Transcribe] No file in request");
+      return res.status(400).json({ error: "No audio file received" });
+    }
 
+    const bufferSize = req.file.buffer.length;
+    const mimetype   = req.file.mimetype || "";
+    console.log("[Transcribe] Received file — size:", bufferSize, "mime:", mimetype);
+
+    if (bufferSize < 1000) {
+      console.warn("[Transcribe] File too small:", bufferSize, "bytes");
+      return res.json({ transcript: "" });
+    }
+
+    // Determine extension — default to webm (works with Whisper)
+    // Mobile Chrome sends audio/webm or application/octet-stream
     let ext = "webm";
-    if (req.file.mimetype.includes("ogg")) ext = "ogg";
-    if (req.file.mimetype.includes("mp4")) ext = "mp4";
+    if (mimetype.includes("ogg"))  ext = "ogg";
+    if (mimetype.includes("mp4"))  ext = "mp4";
+    if (mimetype.includes("mpeg")) ext = "mp3";
+    if (mimetype.includes("wav"))  ext = "wav";
+    // If mimetype is unknown/octet-stream, default to webm (most common on Android)
 
     tempPath = path.join(__dirname, "temp_" + Date.now() + "." + ext);
     fs.writeFileSync(tempPath, req.file.buffer);
+    console.log("[Transcribe] Temp file written:", tempPath);
 
     const response = await openai.audio.transcriptions.create({
       file:     fs.createReadStream(tempPath),
@@ -228,11 +245,12 @@ app.post("/transcribe", upload.single("audio"), async (req, res) => {
       language: "en"
     });
 
-    fs.unlinkSync(tempPath);
+    if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    console.log("[Transcribe] Success:", response.text);
     res.json({ transcript: response.text || "" });
 
   } catch (err) {
-    console.error("Whisper error:", err);
+    console.error("[Transcribe] Error:", err.message, err.status || "");
     if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     res.status(500).json({ error: "Transcription failed: " + err.message });
   }
