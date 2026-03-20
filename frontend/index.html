@@ -1,134 +1,196 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>SpeakUp - Premium</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>SpeakUp</title>
   <style>
+    *{ box-sizing:border-box; margin:0; padding:0; }
     body {
-      margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
       background: linear-gradient(270deg, #ff6a00, #ee0979, #00c6ff);
       background-size: 600% 600%;
-      animation: gradientMove 12s ease infinite;
+      animation: bg 12s ease infinite;
       color: white;
     }
-    @keyframes gradientMove {
-      0% { background-position: 0% }
+    @keyframes bg {
+      0%  { background-position: 0% }
       50% { background-position: 100% }
-      100% { background-position: 0% }
+      100%{ background-position: 0% }
     }
+
+    /* ── NAVBAR ── */
     .navbar {
       display: flex;
       justify-content: space-between;
-      padding: 20px 50px;
       align-items: center;
+      padding: 18px 20px;
     }
-    .navbar h2 { margin: 0; font-size: 28px; }
+    .navbar h2 { font-size: 24px; letter-spacing: -0.5px; }
+    .nav-links { display: flex; gap: 6px; }
     .nav-links a {
-      margin-left: 25px;
       text-decoration: none;
       color: white;
+      font-size: 14px;
       font-weight: 500;
-      transition: 0.3s;
+      padding: 7px 14px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.15);
+      transition: 0.2s;
     }
-    .nav-links a:hover { color: #ffd700; }
-    .home-container {
+    .nav-links a:hover { background: rgba(255,255,255,0.3); }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 24px 20px 32px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      height: 80vh;
-      padding: 50px;
+      flex-direction: column;
+      gap: 20px;
     }
+
+    /* Glass card */
     .glass {
       background: rgba(255,255,255,0.15);
       backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
       border-radius: 20px;
-      padding: 40px;
+      padding: 28px 24px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-      animation: fadeIn 1.5s ease forwards;
+      animation: fadeUp 0.8s ease forwards;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
     }
-    .home-left { width: 50%; }
-    .home-left h1 { font-size: 42px; margin-bottom: 15px; }
-    .typing {
-      border-right: 3px solid white;
-      white-space: nowrap;
-      overflow: hidden;
-      width: 0;
-      animation: typing 4s steps(40, end) 0.3s forwards, blink 0.7s infinite;
+
+    .hero-title {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 12px;
     }
-    @keyframes typing { to { width: 100% } }
-    @keyframes blink { 50% { border-color: transparent } }
-    .home-left p { font-size: 18px; margin: 20px 0; line-height: 1.5; }
-    .home-buttons button {
-      padding: 12px 22px;
-      border: none;
-      border-radius: 30px;
-      margin-right: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: 0.3s;
-      background: linear-gradient(45deg, #00c6ff, #0072ff);
+    .hero-title span { display:block; }
+    .hero-desc {
+      font-size: 15px;
+      line-height: 1.6;
+      opacity: 0.9;
+      margin-bottom: 22px;
+    }
+    .hero-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .hero-btns a {
+      display: block;
+      text-align: center;
+      text-decoration: none;
+      padding: 14px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+    .btn-student {
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
       color: white;
     }
-    .home-buttons button:hover {
-      transform: scale(1.1);
-      box-shadow: 0 0 15px rgba(255,255,255,0.5);
-    }
-    .home-right { width: 40%; }
-    .feature {
-      margin-bottom: 20px;
-      padding: 20px;
-      border-radius: 15px;
-      transition: 0.3s;
-    }
-    .feature:hover {
-      transform: translateY(-5px);
+    .btn-teacher {
       background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1.5px solid rgba(255,255,255,0.4);
     }
-    .feature h3 { margin-bottom: 5px; }
+    .hero-btns a:active { transform: scale(0.97); }
+
+    /* ── FEATURES ── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .feature {
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 18px 14px;
+      animation: fadeUp 0.8s ease 0.2s forwards;
+      opacity: 0;
+    }
+    .feature:last-child {
+      grid-column: span 2;
+    }
+    .feature-icon { font-size: 26px; margin-bottom: 8px; }
+    .feature h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .feature p  { font-size: 12px; opacity: 0.8; line-height: 1.4; }
+
+    /* ── DESKTOP overrides ── */
+    @media(min-width: 640px) {
+      .navbar { padding: 20px 40px; }
+      .navbar h2 { font-size: 28px; }
+      .hero {
+        flex-direction: row;
+        align-items: center;
+        padding: 40px;
+        gap: 30px;
+        min-height: calc(100vh - 70px);
+      }
+      .hero-card  { flex: 1.2; }
+      .feat-wrap  { flex: 1; }
+      .hero-title { font-size: 38px; }
+      .hero-btns  { flex-direction: row; }
+      .hero-btns a { flex: 1; }
+      .features   { grid-template-columns: 1fr; }
+      .feature:last-child { grid-column: span 1; }
+    }
   </style>
 </head>
 <body>
 
-  <div class="navbar">
-    <h2>SpeakUp</h2>
-    <div class="nav-links">
-      <a href="#">Home</a>
-      <a href="student.html">Student</a>
-      <a href="teacher.html">Teacher</a>
+<div class="navbar">
+  <h2>🎤 SpeakUp</h2>
+  <div class="nav-links">
+    <a href="student.html">Student</a>
+    <a href="teacher.html">Teacher</a>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="glass hero-card">
+    <div class="hero-title">
+      <span>Boost Your</span>
+      <span>English Speaking 🚀</span>
+    </div>
+    <p class="hero-desc">
+      Practice daily, improve pronunciation, and gain confidence with real-time speech analysis and AI feedback.
+    </p>
+    <div class="hero-btns">
+      <a href="student.html" class="btn-student">🎓 Start as Student</a>
+      <a href="teacher.html" class="btn-teacher">👨‍🏫 Login as Teacher</a>
     </div>
   </div>
 
-  <div class="home-container">
-    <div class="home-left glass">
-      <h1 class="typing">Boost Your English Speaking 🚀</h1>
-      <p>Practice daily, improve pronunciation, and gain confidence with real-time speech analysis and AI feedback.</p>
-      <div class="home-buttons">
-        <a href="student.html"><button>Start as Student</button></a>
-        <a href="teacher.html"><button>Login as Teacher</button></a>
-      </div>
-    </div>
-
-    <div class="home-right">
-      <div class="feature glass">
-        <h3>🎤 Practice Speaking</h3>
+  <div class="feat-wrap">
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🎤</div>
+        <h3>Practice Speaking</h3>
         <p>Record and analyze your voice instantly.</p>
       </div>
-      <div class="feature glass">
-        <h3>📚 Daily Topics</h3>
-        <p>New speaking topics assigned by teachers.</p>
+      <div class="feature">
+        <div class="feature-icon">📚</div>
+        <h3>Daily Topics</h3>
+        <p>New topics assigned by your teacher every day.</p>
       </div>
-      <div class="feature glass">
-        <h3>🤖 AI Feedback</h3>
-        <p>Get grammar correction and smart suggestions.</p>
+      <div class="feature">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Feedback</h3>
+        <p>Get grammar correction and smart suggestions instantly.</p>
       </div>
     </div>
   </div>
+</div>
 
 </body>
 </html>

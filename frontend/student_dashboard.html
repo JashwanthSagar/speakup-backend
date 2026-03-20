@@ -1,58 +1,270 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Student Dashboard - SpeakUp</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(270deg, #ff416c, #ff4b2b, #ff6a00);
+      background-size: 600% 600%;
+      animation: bg 8s ease infinite;
+      padding: 0 0 40px;
+    }
+    @keyframes bg {
+      0%  { background-position: 0% }
+      50% { background-position: 100% }
+      100%{ background-position: 0% }
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 18px;
+      background: rgba(0,0,0,0.15);
+    }
+    .topbar h2 { color: white; font-size: 20px; margin: 0; }
+    .logout {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-appearance: none;
+    }
+    .logout:active { background: #e74c3c; }
+
+    /* ── CONTENT ── */
+    .content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* ── WELCOME ── */
+    .welcome-text {
+      color: white;
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      padding: 4px 0;
+    }
+
+    /* ── GLASS CARD ── */
+    .card {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border-radius: 18px;
+      padding: 18px;
+      color: white;
+    }
+
+    /* ── TOPIC ── */
+    .topic-label {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .topic-text {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    /* ── RECORDER ── */
+    .recorder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* Big mic button */
+    .mic-btn {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      border: none;
+      font-size: 36px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-appearance: none;
+    }
+    .mic-btn.idle    { background: linear-gradient(135deg, #00c6ff, #0072ff); box-shadow: 0 4px 20px rgba(0,114,255,0.5); }
+    .mic-btn.recording {
+      background: linear-gradient(135deg, #ff4b2b, #ee0979);
+      box-shadow: 0 0 0 0 rgba(238,9,121,0.5);
+      animation: pulse 1.2s ease infinite;
+    }
+    @keyframes pulse {
+      0%  { box-shadow: 0 0 0 0 rgba(238,9,121,0.6); }
+      70% { box-shadow: 0 0 0 18px rgba(238,9,121,0); }
+      100%{ box-shadow: 0 0 0 0 rgba(238,9,121,0); }
+    }
+    .mic-btn:active { transform: scale(0.93); }
+
+    /* Status row */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+    }
+    #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      flex-shrink: 0;
+    }
+    #timer {
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 2px;
+    }
+
+    /* Action buttons */
+    .action-btns {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .action-btns button {
+      flex: 1;
+      padding: 13px 8px;
+      border: none;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+      -webkit-appearance: none;
+    }
+    .action-btns button:active:not(:disabled) { transform: scale(0.96); }
+    .btn-stop   { background: rgba(255,255,255,0.25); color: white; }
+    .btn-submit { background: linear-gradient(135deg, #00c6ff, #0072ff); color: white; }
+    .action-btns button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── MOBILE NOTICE ── */
+    .mobile-notice {
+      background: rgba(255,200,0,0.2);
+      border: 1px solid rgba(255,200,0,0.4);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: white;
+      text-align: center;
+      line-height: 1.5;
+      display: none;
+    }
+
+    /* ── AUDIO ── */
+    audio {
+      width: 100%;
+      border-radius: 10px;
+      display: none;
+    }
+
+    /* ── SPEECH BOXES ── */
+    .speech-label {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .speech-text {
+      font-size: 15px;
+      line-height: 1.6;
+      opacity: 0.9;
+      min-height: 48px;
+    }
+
+    /* ── DESKTOP ── */
+    @media(min-width: 540px) {
+      .content { padding: 24px; }
+      .mic-btn { width: 100px; height: 100px; font-size: 40px; }
+    }
+  </style>
 </head>
-<body class="bg-animate">
+<body>
 
-<div class="container">
-  <div class="card-main">
+<div class="topbar">
+  <h2>🎤 SpeakUp</h2>
+  <button class="logout" onclick="logout()">Logout</button>
+</div>
 
-    <div class="header">
-      <h2>SpeakUp 🎤</h2>
-      <button class="logout" onclick="logout()">Logout</button>
-    </div>
+<div class="content">
 
-    <h1 id="welcomeText" class="welcome">Welcome 👋</h1>
+  <p class="welcome-text" id="welcomeText">Welcome 👋</p>
 
-    <div class="topic-box">
-      <h3>📚 Today's Topic</h3>
-      <p id="topicText">Loading...</p>
-    </div>
-
-    <div class="status">
-      <span id="dot"></span>
-      <span id="statusText">Not Recording</span>
-    </div>
-
-    <h2 id="timer">00:00</h2>
-
-    <div class="btns">
-      <button id="startBtn"  onclick="startRecording()">🎙 Start</button>
-      <button id="stopBtn"   onclick="stopRecording()"  disabled>⏹ Stop</button>
-      <button id="submitBtn" onclick="submitAudio()"    disabled>📤 Submit</button>
-    </div>
-
-    <audio id="audioPlayback" controls style="display:none;"></audio>
-
-    <!-- Mobile notice — shown only when SpeechRecognition not available -->
-    <div id="mobileNotice" style="display:none;background:rgba(255,200,0,0.2);border-radius:10px;padding:10px 12px;margin-top:8px;color:white;font-size:13px;text-align:center;">
-      📱 Your browser doesn't support live transcription.<br>
-      Your speech will be transcribed automatically after you click Stop.
-    </div>
-
-    <div class="speech-box">
-      <h3>Your Speech 📝</h3>
-      <p id="speechText">Your speech will appear here after recording...</p>
-    </div>
-
-    <div class="speech-box">
-      <h3>Corrected Speech ✅</h3>
-      <p id="correctedText">AI correction will appear here after you stop recording...</p>
-    </div>
-
+  <!-- Topic -->
+  <div class="card">
+    <div class="topic-label">📚 Today's Topic</div>
+    <div class="topic-text" id="topicText">Loading...</div>
   </div>
+
+  <!-- Recorder -->
+  <div class="card recorder">
+    <div class="status-row">
+      <span id="dot"></span>
+      <span id="statusText">Tap mic to start</span>
+    </div>
+
+    <div id="timer">00:00</div>
+
+    <!-- Single big mic button — tap to start, tap again to stop -->
+    <button class="mic-btn idle" id="micBtn" onclick="toggleRecording()">🎙</button>
+
+    <div class="action-btns">
+      <button class="btn-stop"   id="stopBtn"   onclick="stopRecording()"  disabled>⏹ Stop</button>
+      <button class="btn-submit" id="submitBtn" onclick="submitAudio()"    disabled>📤 Submit</button>
+    </div>
+  </div>
+
+  <!-- Mobile notice -->
+  <div class="mobile-notice" id="mobileNotice">
+    📱 Live transcription not available on this browser.<br>
+    Your speech will be transcribed automatically after you tap Stop.
+  </div>
+
+  <!-- Audio playback -->
+  <audio id="audioPlayback" controls></audio>
+
+  <!-- Your Speech -->
+  <div class="card">
+    <div class="speech-label">📝 Your Speech</div>
+    <div class="speech-text" id="speechText">Your speech will appear here after recording...</div>
+  </div>
+
+  <!-- Corrected Speech -->
+  <div class="card">
+    <div class="speech-label">✅ Corrected Speech</div>
+    <div class="speech-text" id="correctedText">AI correction will appear after you stop...</div>
+  </div>
+
 </div>
 
 <script>
@@ -76,67 +288,56 @@ async function loadTopic() {
 }
 loadTopic();
 
-// ── Detect if browser supports SpeechRecognition ──
+// ── Speech Recognition detection ──
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const hasSpeechAPI = !!SpeechRecognition;
-
-// Show mobile notice if no live transcription
 if (!hasSpeechAPI) {
   document.getElementById("mobileNotice").style.display = "block";
 }
 
 // ── State ──
-let mediaRecorder    = null;
-let audioChunks      = [];
-let timerInterval    = null;
-let seconds          = 0;
-let recognition      = null;
-let finalTranscript  = "";
+let mediaRecorder   = null;
+let audioChunks     = [];
+let timerInterval   = null;
+let seconds         = 0;
+let recognition     = null;
+let finalTranscript = "";
+let isRecording     = false;
 
-// ── Setup browser speech recognition (laptop/desktop only) ──
+// ── Pick best audio MIME type ──
+function getSupportedMimeType() {
+  const types = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg","audio/mp4",""];
+  for (const t of types) {
+    if (t === "" || MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return "";
+}
+
+// ── Toggle mic (tap once = start, tap again = stop) ──
+function toggleRecording() {
+  if (!isRecording) startRecording();
+  else stopRecording();
+}
+
+// ── Setup speech recognition ──
 function setupRecognition() {
   if (!hasSpeechAPI) return null;
-
-  const rec          = new SpeechRecognition();
+  const rec      = new SpeechRecognition();
   rec.continuous     = true;
   rec.interimResults = true;
   rec.lang           = "en-IN";
-
   rec.onresult = function(event) {
     let interim = "";
     finalTranscript = "";
     for (let i = 0; i < event.results.length; i++) {
-      if (event.results[i].isFinal) {
-        finalTranscript += event.results[i][0].transcript + " ";
-      } else {
-        interim += event.results[i][0].transcript;
-      }
+      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript + " ";
+      else interim += event.results[i][0].transcript;
     }
     document.getElementById("speechText").innerText =
       (finalTranscript + interim).trim() || "Listening...";
   };
-
-  rec.onerror = function(e) {
-    console.warn("SpeechRecognition error:", e.error);
-  };
-
+  rec.onerror = e => console.warn("SpeechRecognition error:", e.error);
   return rec;
-}
-
-// ── Pick best audio MIME type for this device ──
-function getSupportedMimeType() {
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/ogg",
-    "audio/mp4",
-    ""   // browser default
-  ];
-  for (const type of types) {
-    if (type === "" || MediaRecorder.isTypeSupported(type)) return type;
-  }
-  return "";
 }
 
 // ── Start Recording ──
@@ -144,64 +345,60 @@ async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    audioChunks     = [];
-    finalTranscript = "";
-    seconds         = 0;
+    audioChunks = []; finalTranscript = ""; seconds = 0;
+    isRecording = true;
 
     document.getElementById("speechText").innerText    = hasSpeechAPI ? "Listening..." : "Recording... transcript will appear after you stop.";
     document.getElementById("correctedText").innerText = "AI correction will appear after you stop...";
     document.getElementById("audioPlayback").style.display = "none";
 
-    const mimeType    = getSupportedMimeType();
-    const recOptions  = mimeType ? { mimeType } : {};
-    mediaRecorder     = new MediaRecorder(stream, recOptions);
+    const mimeType = getSupportedMimeType();
+    mediaRecorder  = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
     mediaRecorder.onstop = async () => {
-      // Build the blob with the actual mime type used
       const usedMime = mediaRecorder.mimeType || "audio/webm";
       const blob     = new Blob(audioChunks, { type: usedMime });
-      window.audioBlob      = blob;
-      window.audioBlobMime  = usedMime;
+      window.audioBlob     = blob;
+      window.audioBlobMime = usedMime;
 
-      const audioEl  = document.getElementById("audioPlayback");
-      audioEl.src    = URL.createObjectURL(blob);
+      const audioEl = document.getElementById("audioPlayback");
+      audioEl.src   = URL.createObjectURL(blob);
       audioEl.style.display = "block";
       document.getElementById("submitBtn").disabled = false;
 
-      // ── If no browser SpeechRecognition (mobile) → use Whisper ──
       if (!hasSpeechAPI || !finalTranscript.trim()) {
         await transcribeWithWhisper(blob, usedMime);
       }
     };
 
-    mediaRecorder.start(250); // collect data every 250ms for reliability on mobile
+    mediaRecorder.start(250);
 
-    // Start browser speech recognition on desktop
     recognition = setupRecognition();
     if (recognition) recognition.start();
 
     // UI
-    document.getElementById("statusText").innerText   = "Recording...";
-    document.getElementById("dot").style.background   = "red";
-    document.getElementById("startBtn").disabled      = true;
-    document.getElementById("stopBtn").disabled       = false;
-    document.getElementById("submitBtn").disabled     = true;
+    const micBtn = document.getElementById("micBtn");
+    micBtn.className   = "mic-btn recording";
+    micBtn.innerText   = "⏹";
+    document.getElementById("statusText").innerText = "Recording...";
+    document.getElementById("dot").style.background = "#ff4b2b";
+    document.getElementById("stopBtn").disabled     = false;
+    document.getElementById("submitBtn").disabled   = true;
 
     timerInterval = setInterval(() => {
       seconds++;
-      const min = String(Math.floor(seconds / 60)).padStart(2, "0");
-      const sec = String(seconds % 60).padStart(2, "0");
-      document.getElementById("timer").innerText = min + ":" + sec;
+      const m = String(Math.floor(seconds/60)).padStart(2,"0");
+      const s = String(seconds%60).padStart(2,"0");
+      document.getElementById("timer").innerText = m+":"+s;
     }, 1000);
 
     window.activeStream = stream;
 
   } catch (err) {
-    alert("Microphone access is required. Please allow microphone permission and try again.");
+    isRecording = false;
+    alert("Microphone access is required. Please allow mic permission and try again.");
     console.error("Mic error:", err);
   }
 }
@@ -209,53 +406,44 @@ async function startRecording() {
 // ── Stop Recording ──
 async function stopRecording() {
   if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+  isRecording = false;
 
   mediaRecorder.stop();
   clearInterval(timerInterval);
+  if (window.activeStream) window.activeStream.getTracks().forEach(t => t.stop());
+  if (recognition) { try { recognition.stop(); } catch(e) {} }
 
-  if (window.activeStream) {
-    window.activeStream.getTracks().forEach(t => t.stop());
-  }
-  if (recognition) {
-    try { recognition.stop(); } catch(e) {}
-  }
+  // UI
+  const micBtn = document.getElementById("micBtn");
+  micBtn.className   = "mic-btn idle";
+  micBtn.innerText   = "🎙";
+  document.getElementById("statusText").innerText = "Processing...";
+  document.getElementById("dot").style.background = "orange";
+  document.getElementById("stopBtn").disabled     = true;
 
-  document.getElementById("statusText").innerText   = "Processing...";
-  document.getElementById("dot").style.background   = "orange";
-  document.getElementById("startBtn").disabled      = false;
-  document.getElementById("stopBtn").disabled       = true;
-
-  // Wait for onstop to fire and blob to be built
   await new Promise(r => setTimeout(r, 800));
 
-  // If desktop speech recognition got a transcript — process it now
   if (hasSpeechAPI && finalTranscript.trim()) {
     await processTranscript(finalTranscript.trim());
   }
 
-  document.getElementById("statusText").innerText = "Stopped";
-  document.getElementById("dot").style.background = "gray";
+  document.getElementById("statusText").innerText = "Tap mic to record again";
+  document.getElementById("dot").style.background = "rgba(255,255,255,0.4)";
 }
 
-// ── Whisper transcription (for mobile / fallback) ──
+// ── Whisper (mobile fallback) ──
 async function transcribeWithWhisper(blob, mimeType) {
   document.getElementById("speechText").innerText = "Transcribing your speech... ⏳";
-
-  // Determine file extension from mime type
   let ext = "webm";
-  if (mimeType.includes("ogg"))  ext = "ogg";
-  if (mimeType.includes("mp4"))  ext = "mp4";
+  if (mimeType.includes("ogg")) ext = "ogg";
+  if (mimeType.includes("mp4")) ext = "mp4";
 
   const formData = new FormData();
   formData.append("audio", blob, "recording." + ext);
 
   try {
-    const res  = await fetch(BACKEND_URL + "/transcribe", {
-      method: "POST",
-      body: formData
-    });
+    const res  = await fetch(BACKEND_URL + "/transcribe", { method:"POST", body:formData });
     const data = await res.json();
-
     if (data.transcript && data.transcript.trim()) {
       finalTranscript = data.transcript;
       await processTranscript(finalTranscript.trim());
@@ -270,11 +458,10 @@ async function transcribeWithWhisper(blob, mimeType) {
   }
 }
 
-// ── Process transcript → show + AI correct ──
+// ── Process transcript → AI correct ──
 async function processTranscript(text) {
   document.getElementById("speechText").innerText    = text;
   document.getElementById("correctedText").innerText = "Correcting grammar... ⏳";
-
   try {
     const res  = await fetch(BACKEND_URL + "/correct", {
       method: "POST",
@@ -283,37 +470,33 @@ async function processTranscript(text) {
     });
     const data = await res.json();
     document.getElementById("correctedText").innerText = data.corrected || "No correction returned.";
-  } catch (err) {
-    console.error("AI correction error:", err);
+  } catch {
     document.getElementById("correctedText").innerText = "Could not connect to AI. Check your internet.";
   }
 }
 
-// ── Submit Audio ──
+// ── Submit ──
 async function submitAudio() {
-  if (!window.audioBlob) {
-    alert("Please record something first!");
-    return;
-  }
-  const submitBtn = document.getElementById("submitBtn");
-  submitBtn.disabled  = true;
-  submitBtn.innerText = "Uploading...";
+  if (!window.audioBlob) { alert("Please record something first!"); return; }
+  const btn = document.getElementById("submitBtn");
+  btn.disabled  = true;
+  btn.innerText = "Uploading...";
 
-  const ext      = (window.audioBlobMime || "audio/webm").includes("mp4") ? "mp4"
-                 : (window.audioBlobMime || "").includes("ogg") ? "ogg" : "webm";
-  const formData = new FormData();
-  formData.append("audio", window.audioBlob, "recording." + ext);
-  formData.append("name",  student.name);
-  formData.append("pin",   student.pin);
+  const ext = (window.audioBlobMime||"").includes("mp4") ? "mp4"
+            : (window.audioBlobMime||"").includes("ogg") ? "ogg" : "webm";
+  const fd  = new FormData();
+  fd.append("audio", window.audioBlob, "recording."+ext);
+  fd.append("name",  student.name);
+  fd.append("pin",   student.pin);
 
   try {
-    await fetch(BACKEND_URL + "/upload", { method: "POST", body: formData });
-    submitBtn.innerText = "✅ Submitted!";
+    await fetch(BACKEND_URL + "/upload", { method:"POST", body:fd });
+    btn.innerText = "✅ Submitted!";
     alert("Recording submitted successfully! ✅");
   } catch {
-    submitBtn.disabled  = false;
-    submitBtn.innerText = "📤 Submit";
-    alert("Upload failed. Please check your connection and try again. ❌");
+    btn.disabled  = false;
+    btn.innerText = "📤 Submit";
+    alert("Upload failed. Check your connection. ❌");
   }
 }
 
@@ -323,6 +506,5 @@ function logout() {
   window.location.href = "index.html";
 }
 </script>
-
 </body>
 </html>
