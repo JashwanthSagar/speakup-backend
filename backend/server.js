@@ -11,7 +11,11 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ OpenAI Setup (ONLY ONCE)
+// Startup check for API key
+if (!process.env.OPENAI_API_KEY) {
+  console.error("WARNING: OPENAI_API_KEY is not set in environment variables!");
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -22,55 +26,100 @@ if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath);
 }
 
-// Multer setup
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    const name = req.body.name || "student";
-    const pin = req.body.pin || "0000";
-    const uniqueName = name + "_" + pin + "_" + Date.now() + ".webm";
-    cb(null, uniqueName);
+// records.json path — stores student metadata
+const recordsPath = path.join(__dirname, "records.json");
+if (!fs.existsSync(recordsPath)) {
+  fs.writeFileSync(recordsPath, "[]");
+}
+
+// In-memory topic store
+let currentTopic = "No topic assigned yet";
+
+// -------------------
+// Multer setup — fixed: use memoryStorage so req.body is available
+// -------------------
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("audio/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only audio files are allowed"), false);
+    }
   }
 });
 
-const upload = multer({ storage: storage });
-
-// ✅ Upload API
+// -------------------
+// POST /upload — save audio + metadata
+// -------------------
 app.post("/upload", upload.single("audio"), (req, res) => {
-  res.json({ message: "File uploaded successfully" });
+  try {
+    const name = (req.body.name || "student").replace(/[^a-zA-Z0-9]/g, "_");
+    const pin  = (req.body.pin  || "0000").replace(/[^a-zA-Z0-9]/g, "_");
+    const fileName = name + "_" + pin + "_" + Date.now() + ".webm";
+    const filePath = path.join(uploadPath, fileName);
+
+    // Write buffer to disk
+    fs.writeFileSync(filePath, req.file.buffer);
+
+    // Save metadata to records.json
+    const records = JSON.parse(fs.readFileSync(recordsPath));
+    records.push({ name: req.body.name, pin: req.body.pin, file: fileName });
+    fs.writeFileSync(recordsPath, JSON.stringify(records, null, 2));
+
+    res.json({ message: "Uploaded successfully" });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({ error: "Upload failed" });
+  }
 });
 
-// ✅ Get all audios
+// -------------------
+// GET /audios — return all student recordings
+// -------------------
 app.get("/audios", (req, res) => {
-  fs.readdir(uploadPath, (err, files) => {
-    if (err) return res.json([]);
-
-    const data = files.map(file => {
-      const parts = file.split("_");
-
-      return {
-        name: parts[0] || "Unknown",
-        pin: parts[1] || "----",
-        file: file
-      };
-    });
-
-    res.json(data);
-  });
+  try {
+    const records = JSON.parse(fs.readFileSync(recordsPath));
+    res.json(records);
+  } catch {
+    res.json([]);
+  }
 });
 
-// ✅ Serve uploads
+// -------------------
+// Serve uploaded audio files
+// -------------------
 app.use("/uploads", express.static(uploadPath));
 
-// ✅ AI Grammar Correction API
+// -------------------
+// POST /set-topic — teacher sets the topic
+// -------------------
+app.post("/set-topic", (req, res) => {
+  const { topic } = req.body;
+  if (!topic || topic.trim() === "") {
+    return res.status(400).json({ error: "Topic cannot be empty" });
+  }
+  currentTopic = topic.trim();
+  res.json({ message: "Topic saved", topic: currentTopic });
+});
+
+// -------------------
+// GET /get-topic — student fetches the topic
+// -------------------
+app.get("/get-topic", (req, res) => {
+  res.json({ topic: currentTopic });
+});
+
+// -------------------
+// POST /correct — AI grammar correction
+// -------------------
 app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
 
     if (!text || text.trim() === "") {
-      return res.json({ corrected: "No speech detected" });
+      return res.json({ corrected: "No speech detected." });
     }
 
     const response = await openai.chat.completions.create({
@@ -78,7 +127,7 @@ app.post("/correct", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: "Correct the grammar and return only corrected sentence."
+          content: "You are an English grammar correction assistant. Correct the grammar of the given text and return only the corrected sentence. Do not add any explanation."
         },
         {
           role: "user",
@@ -87,22 +136,18 @@ app.post("/correct", async (req, res) => {
       ]
     });
 
-    const corrected =
-      response.choices?.[0]?.message?.content || "No correction found";
-
+    const corrected = response.choices?.[0]?.message?.content || "No correction found";
     res.json({ corrected });
 
   } catch (err) {
-    console.log("🔥 AI ERROR FULL:", err);
-
-    // 👇 send actual error message to frontend
-    res.json({
-      corrected: "AI Error: " + (err.message || "Unknown error")
-    });
+    console.error("AI Error:", err);
+    res.status(500).json({ corrected: "AI Error: " + (err.message || "Unknown error") });
   }
 });
 
-// ✅ Start server
+// -------------------
+// Start server
+// -------------------
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("SpeakUp server running on port " + PORT);
 });
