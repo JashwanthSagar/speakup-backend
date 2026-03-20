@@ -87,7 +87,7 @@
   <input id="password" type="password" placeholder="Password" />
   <button onclick="loginTeacher()">Login →</button>
   <div class="error-msg" id="errorMsg">Invalid username or password.</div>
-  <p class="note">Default: admin / 1234 — change in production</p>
+  <p class="note">Designed by Three Bencher's</p>
 </div>
 
 <script>
@@ -104,7 +104,7 @@ function loginTeacher() {
     return;
   }
 
-  if (user === "admin" && pass === "1234") {
+  if (user === "Teja_Prathap" && pass === "Prathap@007") {
     localStorage.setItem("teacherLoggedIn", "true");
     window.location.href = "teacher_dashboard.html";
   } else {
