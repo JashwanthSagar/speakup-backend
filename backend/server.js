@@ -208,6 +208,36 @@ app.get("/status", (req, res) => {
 });
 
 // POST /correct — AI grammar correction
+
+// POST /transcribe — Whisper transcription for mobile devices
+app.post("/transcribe", upload.single("audio"), async (req, res) => {
+  let tempPath = null;
+  try {
+    if (!req.file) return res.status(400).json({ error: "No audio file received" });
+
+    let ext = "webm";
+    if (req.file.mimetype.includes("ogg")) ext = "ogg";
+    if (req.file.mimetype.includes("mp4")) ext = "mp4";
+
+    tempPath = path.join(__dirname, "temp_" + Date.now() + "." + ext);
+    fs.writeFileSync(tempPath, req.file.buffer);
+
+    const response = await openai.audio.transcriptions.create({
+      file:     fs.createReadStream(tempPath),
+      model:    "whisper-1",
+      language: "en"
+    });
+
+    fs.unlinkSync(tempPath);
+    res.json({ transcript: response.text || "" });
+
+  } catch (err) {
+    console.error("Whisper error:", err);
+    if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    res.status(500).json({ error: "Transcription failed: " + err.message });
+  }
+});
+
 app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
