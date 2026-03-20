@@ -1,31 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Teacher Dashboard</title>
-
+  <title>Teacher Dashboard - SpeakUp</title>
   <style>
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      height: 100vh;
+      min-height: 100vh;
       background: linear-gradient(270deg, #141e30, #243b55, #6a11cb);
       background-size: 600% 600%;
       animation: bgMove 12s ease infinite;
       color: white;
     }
-
     @keyframes bgMove {
-      0% { background-position: 0% }
-      50% { background-position: 100% }
+      0%   { background-position: 0% }
+      50%  { background-position: 100% }
       100% { background-position: 0% }
     }
-
     .header {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 20px 40px;
     }
-
+    .header h2 { margin: 0; }
     .logout {
       padding: 10px 18px;
       border: none;
@@ -33,15 +31,15 @@
       background: #ff4b2b;
       color: white;
       cursor: pointer;
+      font-size: 14px;
+      transition: 0.3s;
     }
-
+    .logout:hover { transform: scale(1.05); }
     .container {
       display: flex;
       justify-content: center;
-      align-items: center;
-      height: 85vh;
+      padding: 10px 20px 40px;
     }
-
     .card {
       width: 900px;
       padding: 30px;
@@ -49,158 +47,241 @@
       background: rgba(255,255,255,0.1);
       backdrop-filter: blur(20px);
     }
-
+    /* Stats */
     .stats {
       display: flex;
       justify-content: center;
-      margin-bottom: 20px;
+      gap: 20px;
+      margin-bottom: 25px;
     }
-
     .stat-box {
-      padding: 15px;
+      padding: 15px 30px;
       border-radius: 15px;
       background: rgba(255,255,255,0.2);
       text-align: center;
-      width: 200px;
+      min-width: 120px;
     }
-
-    /* 🔥 Topic Box */
+    .stat-box h3 { margin: 0 0 4px; font-size: 28px; }
+    .stat-box p  { margin: 0; font-size: 13px; opacity: 0.8; }
+    /* Topic box */
     .topic-box {
-      text-align: center;
-      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
     }
-
     .topic-box input {
-      padding: 10px;
-      width: 60%;
+      padding: 10px 14px;
+      width: 55%;
       border-radius: 10px;
       border: none;
+      outline: none;
+      font-size: 14px;
+      background: rgba(255,255,255,0.9);
+      color: #333;
     }
-
     .topic-box button {
-      padding: 10px;
+      padding: 10px 20px;
       border-radius: 10px;
       border: none;
-      margin-left: 10px;
       background: #00c6ff;
       color: white;
       cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: 0.3s;
     }
-
+    .topic-box button:hover { background: #0072ff; transform: scale(1.05); }
+    .current-topic {
+      text-align: center;
+      font-size: 13px;
+      opacity: 0.75;
+      margin-bottom: 20px;
+    }
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: center;
     }
-
     th {
       background: rgba(255,255,255,0.3);
-      padding: 10px;
+      padding: 12px 10px;
+      font-size: 14px;
     }
-
     td {
       padding: 10px;
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.08);
+      font-size: 14px;
+      vertical-align: middle;
     }
-
-    tr:hover td {
-      background: rgba(255,255,255,0.2);
+    tr:hover td { background: rgba(255,255,255,0.15); }
+    audio { width: 200px; }
+    .empty-row td {
+      padding: 30px;
+      opacity: 0.6;
+      font-size: 14px;
     }
-
-    audio {
-      width: 100%;
+    .refresh-btn {
+      display: block;
+      margin: 0 auto 20px;
+      padding: 8px 20px;
+      border: 1.5px solid rgba(255,255,255,0.5);
+      border-radius: 20px;
+      background: transparent;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.3s;
     }
-
+    .refresh-btn:hover { background: rgba(255,255,255,0.15); }
+    h3.section-title {
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
   </style>
 </head>
-
 <body>
 
 <div class="header">
-  <h2>Teacher Dashboard</h2>
+  <h2>👨‍🏫 Teacher Dashboard</h2>
   <button class="logout" onclick="logout()">Logout</button>
 </div>
 
 <div class="container">
   <div class="card">
 
-    <!-- Stats -->
     <div class="stats">
       <div class="stat-box">
         <h3 id="audioCount">0</h3>
-        <p>Total Audios</p>
+        <p>Total Submissions</p>
       </div>
     </div>
 
-    <!-- ✅ Topic Posting -->
+    <!-- Topic posting — now saves to backend -->
     <div class="topic-box">
-      <input id="newTopic" placeholder="Enter Topic">
-      <button onclick="saveTopic()">Submit</button>
+      <input id="newTopic" placeholder="Enter today's speaking topic..." />
+      <button onclick="saveTopic()">📌 Set Topic</button>
     </div>
+    <p class="current-topic" id="currentTopicDisplay">Loading current topic...</p>
 
-    <!-- Audio Table -->
-    <h3 style="text-align:center;">Student Recordings</h3>
+    <h3 class="section-title">🎧 Student Recordings</h3>
+    <button class="refresh-btn" onclick="loadAudios()">↻ Refresh</button>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>PIN</th>
-          <th>Audio</th>
-        </tr>
-      </thead>
-      <tbody id="audioList"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>PIN</th>
+            <th>Audio</th>
+          </tr>
+        </thead>
+        <tbody id="audioList">
+          <tr class="empty-row"><td colspan="3">Loading recordings...</td></tr>
+        </tbody>
+      </table>
+    </div>
 
   </div>
 </div>
 
 <script>
-
 const BACKEND_URL = "https://speakup-backend-1.onrender.com";
 
-// ✅ Save topic
-function saveTopic() {
-  const topic = document.getElementById("newTopic").value;
-  localStorage.setItem("topic", topic);
-  alert("Topic saved!");
+// ── Guard: redirect if not logged in ──
+if (localStorage.getItem("teacherLoggedIn") !== "true") {
+  window.location.href = "teacher.html";
 }
 
-// 🔥 Load audios
+// ── Load current topic from backend ──
+async function loadCurrentTopic() {
+  try {
+    const res = await fetch(BACKEND_URL + "/get-topic");
+    const data = await res.json();
+    document.getElementById("currentTopicDisplay").innerText =
+      "Current topic: " + (data.topic || "None set");
+  } catch {
+    document.getElementById("currentTopicDisplay").innerText =
+      "Could not load topic.";
+  }
+}
+loadCurrentTopic();
+
+// ── Save topic to backend ──
+async function saveTopic() {
+  const topic = document.getElementById("newTopic").value.trim();
+  if (!topic) {
+    alert("Please enter a topic first.");
+    return;
+  }
+  try {
+    const res = await fetch(BACKEND_URL + "/set-topic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic })
+    });
+    const data = await res.json();
+    alert("Topic set: " + data.topic + " ✅");
+    document.getElementById("newTopic").value = "";
+    loadCurrentTopic();
+  } catch {
+    alert("Failed to save topic. Check your backend connection.");
+  }
+}
+
+// ── Load student recordings from backend ──
 async function loadAudios() {
+  const tbody = document.getElementById("audioList");
+  tbody.innerHTML = `<tr class="empty-row"><td colspan="3">Loading...</td></tr>`;
+
   try {
     const res = await fetch(BACKEND_URL + "/audios");
     const data = await res.json();
 
     document.getElementById("audioCount").innerText = data.length;
 
-    const rows = data.map(item => {
-      return `
-        <tr>
-          <td>${item.name}</td>
-          <td>${item.pin}</td>
-          <td>
-            <audio controls src="${BACKEND_URL}/uploads/${item.file}"></audio>
-          </td>
-        </tr>
-      `;
-    }).join("");
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="3">No recordings submitted yet.</td></tr>`;
+      return;
+    }
 
-    document.getElementById("audioList").innerHTML = rows;
+    tbody.innerHTML = data.map(item => `
+      <tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.pin)}</td>
+        <td>
+          <audio controls src="${BACKEND_URL}/uploads/${encodeURIComponent(item.file)}"></audio>
+        </td>
+      </tr>
+    `).join("");
 
   } catch {
-    document.getElementById("audioList").innerHTML =
-      `<tr><td colspan="3">Error loading audios</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="3">❌ Error loading recordings. Check backend connection.</td></tr>`;
   }
 }
-
 loadAudios();
 
-// Logout
-function logout() {
-  window.location.href = "index.html";
+// Sanitize to prevent XSS
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
+// ── Logout ──
+function logout() {
+  localStorage.removeItem("teacherLoggedIn");
+  window.location.href = "index.html";
+}
 </script>
 
 </body>

@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Teacher Login</title>
-
+  <title>Teacher Login - SpeakUp</title>
   <style>
     body {
       margin: 0;
@@ -11,21 +10,17 @@
       justify-content: center;
       align-items: center;
       font-family: 'Segoe UI', sans-serif;
-
       background: linear-gradient(270deg, #00c6ff, #0072ff, #6a11cb);
       background-size: 600% 600%;
       animation: gradientMove 12s ease infinite;
     }
-
     @keyframes gradientMove {
-      0% { background-position: 0% }
-      50% { background-position: 100% }
+      0%   { background-position: 0% }
+      50%  { background-position: 100% }
       100% { background-position: 0% }
     }
-
-    /* Login Box */
     .login-box {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255,255,255,0.15);
       padding: 40px;
       border-radius: 20px;
       width: 320px;
@@ -33,44 +28,26 @@
       backdrop-filter: blur(15px);
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
       color: white;
-
-      animation: fadeIn 1.5s ease;
+      animation: fadeIn 1.5s ease forwards;
     }
-
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
-
-    .login-box h2 {
-      margin-bottom: 20px;
-    }
-
-    /* Inputs */
+    .login-box h2 { margin-bottom: 20px; }
     .login-box input {
       width: 100%;
       padding: 12px;
-      margin: 10px 0;
+      margin: 8px 0;
       border-radius: 10px;
       border: none;
       outline: none;
       font-size: 14px;
-
       background: rgba(255,255,255,0.2);
       color: white;
+      box-sizing: border-box;
     }
-
-    .login-box input::placeholder {
-      color: rgba(255,255,255,0.8);
-    }
-
-    /* Button */
+    .login-box input::placeholder { color: rgba(255,255,255,0.8); }
     .login-box button {
       width: 100%;
       padding: 12px;
@@ -83,36 +60,62 @@
       cursor: pointer;
       transition: 0.3s;
     }
-
     .login-box button:hover {
       transform: scale(1.05);
       box-shadow: 0 0 15px rgba(255,255,255,0.6);
     }
-
+    .error-msg {
+      background: rgba(255,0,0,0.3);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+    .note {
+      font-size: 11px;
+      opacity: 0.6;
+      margin-top: 14px;
+    }
   </style>
-
 </head>
-
 <body>
 
 <div class="login-box">
-  <h2>Teacher Login</h2>
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="loginTeacher()">Login</button>
+  <h2>👨‍🏫 Teacher Login</h2>
+  <input id="username" placeholder="Username" />
+  <input id="password" type="password" placeholder="Password" />
+  <button onclick="loginTeacher()">Login →</button>
+  <div class="error-msg" id="errorMsg">Invalid username or password.</div>
+  <p class="note">Default: admin / 1234 — change in production</p>
 </div>
 
 <script>
+// NOTE FOR PRODUCTION: move this check to your backend /teacher-login endpoint
+// and verify credentials server-side instead of in the browser.
 function loginTeacher() {
-  const user = document.getElementById("username").value;
-  const pass = document.getElementById("password").value;
+  const user = document.getElementById("username").value.trim();
+  const pass = document.getElementById("password").value.trim();
+  const errorMsg = document.getElementById("errorMsg");
 
-  if(user === "admin" && pass === "1234") {
+  if (!user || !pass) {
+    errorMsg.style.display = "block";
+    errorMsg.innerText = "Please enter username and password.";
+    return;
+  }
+
+  if (user === "admin" && pass === "1234") {
+    localStorage.setItem("teacherLoggedIn", "true");
     window.location.href = "teacher_dashboard.html";
   } else {
-    alert("Invalid Login");
+    errorMsg.style.display = "block";
+    errorMsg.innerText = "Invalid username or password.";
   }
 }
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") loginTeacher();
+});
 </script>
 
 </body>
