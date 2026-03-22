@@ -33,17 +33,16 @@ if (!fs.existsSync(statePath)) {
   }, null, 2));
 }
 
-// ── In-memory job store for transcription polling ──
-// Mobile browsers kill long fetch() connections when screen locks.
-// Solution: POST audio → get jobId → poll GET /job/:id until done
+// ── In-memory job store ──
 const jobs = {};
 
+// ── Helpers ──
 function readState()   { return JSON.parse(fs.readFileSync(statePath)); }
 function writeState(s) { fs.writeFileSync(statePath, JSON.stringify(s, null, 2)); }
 function readTopics()  { return JSON.parse(fs.readFileSync(topicsPath)); }
 function todayStr()    { return new Date().toISOString().slice(0, 10); }
 
-// ── Auto clear ──
+// ── Auto clear every 24h ──
 function autoClearIfNeeded() {
   const state = readState();
   const today = todayStr();
@@ -56,7 +55,7 @@ function autoClearIfNeeded() {
   writeState(state);
 }
 
-// ── Auto topic ──
+// ── Auto topic every day ──
 function autoPickTopicIfNeeded() {
   const state  = readState();
   const topics = readTopics();
@@ -74,7 +73,7 @@ autoClearIfNeeded();
 autoPickTopicIfNeeded();
 setInterval(() => { autoClearIfNeeded(); autoPickTopicIfNeeded(); }, 60 * 60 * 1000);
 
-// ── Multer — no fileFilter, accept all for mobile ──
+// ── Multer ──
 const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 25 * 1024 * 1024 }
@@ -84,7 +83,6 @@ const upload = multer({
 // ROUTES
 // ─────────────────────────────────────────────
 
-// POST /upload
 app.post("/upload", upload.single("audio"), (req, res) => {
   try {
     const name     = (req.body.name || "student").replace(/[^a-zA-Z0-9]/g, "_");
@@ -101,13 +99,11 @@ app.post("/upload", upload.single("audio"), (req, res) => {
   }
 });
 
-// GET /audios
 app.get("/audios", (req, res) => {
   try { res.json(JSON.parse(fs.readFileSync(recordsPath))); }
   catch { res.json([]); }
 });
 
-// DELETE /clear-all
 app.delete("/clear-all", (req, res) => {
   try {
     fs.readdirSync(uploadPath).forEach(f => fs.unlinkSync(path.join(uploadPath, f)));
@@ -123,13 +119,9 @@ app.delete("/clear-all", (req, res) => {
 
 app.use("/uploads", express.static(uploadPath));
 
-// GET /get-topic
-app.get("/get-topic", (req, res) => res.json({ topic: readState().currentTopic }));
-
-// GET /get-topics
+app.get("/get-topic",  (req, res) => res.json({ topic: readState().currentTopic }));
 app.get("/get-topics", (req, res) => res.json({ topics: readTopics() }));
 
-// POST /set-topics
 app.post("/set-topics", (req, res) => {
   const { topics } = req.body;
   if (!Array.isArray(topics)) return res.status(400).json({ error: "topics must be array" });
@@ -142,7 +134,6 @@ app.post("/set-topics", (req, res) => {
   res.json({ message: "Topics saved", count: cleaned.length });
 });
 
-// POST /set-topic
 app.post("/set-topic", (req, res) => {
   const { topic } = req.body;
   if (!topic || !topic.trim()) return res.status(400).json({ error: "Topic empty" });
@@ -153,7 +144,6 @@ app.post("/set-topic", (req, res) => {
   res.json({ message: "Topic set", topic: state.currentTopic });
 });
 
-// GET /status
 app.get("/status", (req, res) => {
   const state  = readState();
   const topics = readTopics();
@@ -168,13 +158,11 @@ app.get("/status", (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// TRANSCRIPTION — Job-based polling
-// Mobile browsers kill long connections when screen locks.
-// So we: POST audio → server starts job in background → return jobId immediately
-//        Frontend polls GET /job/:id every 3 seconds until done
+// TRANSCRIPTION — Job polling system
+// POST /transcribe → returns jobId immediately
+// GET  /job/:id   → poll until done/error
 // ─────────────────────────────────────────────
 
-// POST /transcribe — accepts audio, starts background job, returns jobId immediately
 app.post("/transcribe", upload.single("audio"), (req, res) => {
   if (!req.file || !req.file.buffer) {
     return res.status(400).json({ error: "No audio received" });
@@ -182,74 +170,94 @@ app.post("/transcribe", upload.single("audio"), (req, res) => {
 
   const size = req.file.buffer.length;
   const mime = req.file.mimetype || "";
-  console.log("[Transcribe] Received — size:", size, "mime:", mime);
+  console.log("[Transcribe] size:", size, "mime:", mime);
 
   if (size < 1000) {
-    return res.json({ jobId: null, transcript: "", error: "too_short" });
+    return res.json({ jobId: null, error: "too_short" });
   }
 
-  // Create job immediately and return jobId — don't make mobile wait
-  const jobId = "job_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
-  jobs[jobId] = { status: "processing", transcript: "", error: null, createdAt: Date.now() };
+  const jobId = "job_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+  jobs[jobId] = { status: "processing", transcript: "", error: null };
 
-  res.json({ jobId }); // return immediately — mobile won't lose connection
+  // Return jobId immediately — mobile gets response before Whisper starts
+  res.json({ jobId });
 
-  // Run Whisper in background (non-blocking)
+  // Run Whisper in background
   runWhisper(jobId, req.file.buffer, mime);
 });
 
-// Background Whisper processing
+// ── Whisper background processor ──
 async function runWhisper(jobId, buffer, mime) {
-  let tempPath = null;
   try {
-    let ext = "webm";
-    if (mime.includes("mp4") || mime.includes("m4a")) ext = "mp4";
+    // Pick extension — Whisper uses this to detect format
+    let ext = "webm"; // Android Chrome default
+    if (mime.includes("mp4") || mime.includes("m4a")) ext = "mp4"; // iOS Safari
     else if (mime.includes("ogg"))  ext = "ogg";
     else if (mime.includes("wav"))  ext = "wav";
     else if (mime.includes("mpeg") || mime.includes("mp3")) ext = "mp3";
 
-    tempPath = path.join(__dirname, "temp_" + jobId + "." + ext);
-    fs.writeFileSync(tempPath, buffer);
-    console.log("[Whisper] Job", jobId, "— file:", tempPath, "size:", fs.statSync(tempPath).size);
+    console.log("[Whisper]", jobId, "size:", buffer.length, "ext:", ext, "mime:", mime);
 
-    const fileStream  = fs.createReadStream(tempPath);
-    fileStream.path   = "recording." + ext;
+    // ── SDK v4.28 correct method: pass Buffer directly as File ──
+    // Do NOT use toFile(stream,...) — streams are unreliable in background jobs
+    // Use the File constructor with the raw buffer instead
+    const audioFile = new File([buffer], "recording." + ext, {
+      type: ext === "webm" ? "audio/webm" :
+            ext === "mp4"  ? "audio/mp4"  :
+            ext === "ogg"  ? "audio/ogg"  :
+            ext === "wav"  ? "audio/wav"  :
+            ext === "mp3"  ? "audio/mpeg" : "audio/webm"
+    });
 
     const response = await openai.audio.transcriptions.create({
-      file:     fileStream,
+      file:     audioFile,
       model:    "whisper-1",
       language: "en"
     });
 
-    try { fs.unlinkSync(tempPath); } catch {}
-
     const transcript = (response.text || "").trim();
-    console.log("[Whisper] Job", jobId, "done:", transcript.substring(0, 80));
+    console.log("[Whisper]", jobId, "SUCCESS:", transcript.substring(0, 80));
     jobs[jobId] = { status: "done", transcript, error: null };
 
   } catch (err) {
-    if (tempPath) { try { fs.unlinkSync(tempPath); } catch {} }
-    console.error("[Whisper] Job", jobId, "failed:", err.message);
+    console.error("[Whisper]", jobId, "FAILED:", err.message);
+    if (err.status)  console.error("[Whisper] HTTP status:", err.status);
+    if (err.error)   console.error("[Whisper] Detail:", JSON.stringify(err.error));
 
-    // Retry with mp4 if webm failed
+    // ── Retry: try mp4 format if first attempt failed ──
     if (!mime.includes("mp4")) {
       try {
-        console.log("[Whisper] Retrying job", jobId, "as mp4...");
-        const retryPath = path.join(__dirname, "retry_" + jobId + ".mp4");
-        fs.writeFileSync(retryPath, buffer);
-        const retryStream = fs.createReadStream(retryPath);
-        retryStream.path  = "recording.mp4";
+        console.log("[Whisper]", jobId, "retrying as mp4...");
+        const retryFile = new File([buffer], "recording.mp4", { type: "audio/mp4" });
         const r2 = await openai.audio.transcriptions.create({
-          file: retryStream, model: "whisper-1", language: "en"
+          file:     retryFile,
+          model:    "whisper-1",
+          language: "en"
         });
-        try { fs.unlinkSync(retryPath); } catch {}
         const t2 = (r2.text || "").trim();
-        console.log("[Whisper] Retry job", jobId, "OK:", t2.substring(0, 80));
+        console.log("[Whisper]", jobId, "retry SUCCESS:", t2.substring(0, 80));
         jobs[jobId] = { status: "done", transcript: t2, error: null };
         return;
       } catch (e2) {
-        console.error("[Whisper] Retry job", jobId, "also failed:", e2.message);
+        console.error("[Whisper]", jobId, "retry FAILED:", e2.message);
       }
+    }
+
+    // ── Second retry: try as ogg ──
+    try {
+      console.log("[Whisper]", jobId, "retrying as ogg...");
+      const oggFile = new File([buffer], "recording.ogg", { type: "audio/ogg" });
+      const r3 = await openai.audio.transcriptions.create({
+        file:     oggFile,
+        model:    "whisper-1",
+        language: "en"
+      });
+      const t3 = (r3.text || "").trim();
+      console.log("[Whisper]", jobId, "ogg retry SUCCESS:", t3.substring(0, 80));
+      jobs[jobId] = { status: "done", transcript: t3, error: null };
+      return;
+    } catch (e3) {
+      console.error("[Whisper]", jobId, "ogg retry FAILED:", e3.message);
     }
 
     jobs[jobId] = { status: "error", transcript: "", error: err.message };
@@ -259,7 +267,7 @@ async function runWhisper(jobId, buffer, mime) {
   setTimeout(() => { delete jobs[jobId]; }, 10 * 60 * 1000);
 }
 
-// GET /job/:id — frontend polls this every 3 seconds
+// GET /job/:id — frontend polls this
 app.get("/job/:id", (req, res) => {
   const job = jobs[req.params.id];
   if (!job) return res.json({ status: "not_found" });
@@ -273,6 +281,7 @@ app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
     if (!text || !text.trim()) return res.json({ corrected: "No speech detected." });
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -280,22 +289,24 @@ app.post("/correct", async (req, res) => {
         { role: "user",   content: text }
       ]
     });
+
     res.json({ corrected: response.choices?.[0]?.message?.content || "No correction found" });
+
   } catch (err) {
     console.error("AI Error:", err);
-    res.status(500).json({ corrected: "AI Error: " + (err.message || "Unknown error") });
+    res.status(500).json({ corrected: "AI Error: " + (err.message || "Unknown") });
   }
 });
 
-// ── Start + keep-alive self-ping ──
+// ── Start server + self-ping to prevent Render sleep ──
 app.listen(PORT, () => {
   console.log("SpeakUp server running on port " + PORT);
 
-  // Ping self every 14 min to prevent Render free tier sleep
+  // Ping self every 14 min — Render free tier sleeps after 15 min
   setInterval(() => {
     const http = require("http");
-    http.get("http://localhost:" + PORT + "/status", res => {
-      console.log("[KeepAlive] OK - status:", res.statusCode);
+    http.get("http://localhost:" + PORT + "/status", r => {
+      console.log("[KeepAlive] OK:", r.statusCode);
     }).on("error", e => console.log("[KeepAlive] Failed:", e.message));
   }, 14 * 60 * 1000);
 });
