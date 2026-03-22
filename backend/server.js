@@ -296,4 +296,21 @@ app.post("/correct", async (req, res) => {
 });
 
 // ── Start ──
-app.listen(PORT, () => console.log("SpeakUp server running on port " + PORT));
+app.listen(PORT, () => {
+  console.log("SpeakUp server running on port " + PORT);
+
+  // Self-ping every 14 minutes to prevent Render free tier from sleeping
+  // Render sleeps after 15 minutes of inactivity
+  setInterval(async () => {
+    try {
+      const http = require("http");
+      http.get("http://localhost:" + PORT + "/status", res => {
+        console.log("[KeepAlive] Ping OK - status:", res.statusCode);
+      }).on("error", e => {
+        console.log("[KeepAlive] Ping failed:", e.message);
+      });
+    } catch(e) {
+      console.log("[KeepAlive] Error:", e.message);
+    }
+  }, 14 * 60 * 1000); // every 14 minutes
+});
