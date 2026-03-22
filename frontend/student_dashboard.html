@@ -244,6 +244,11 @@
     </div>
   </div>
 
+  <!-- Server status banner -->
+  <div id="serverBanner" style="display:none;background:rgba(255,150,0,0.25);border:1px solid rgba(255,150,0,0.5);border-radius:12px;padding:10px 14px;font-size:13px;color:white;text-align:center;line-height:1.5;">
+    ⏳ Server is waking up, please wait 30–40 seconds...
+  </div>
+
   <!-- Mobile notice -->
   <div class="mobile-notice" id="mobileNotice">
     📱 Live transcription not available on this browser.<br>
@@ -275,10 +280,51 @@ const student = JSON.parse(localStorage.getItem("currentStudent"));
 if (!student) window.location.href = "student.html";
 document.getElementById("welcomeText").innerText = "Welcome, " + student.name + " 👋";
 
+// ── Fetch with timeout helper ──
+// Render free tier sleeps after 15 min — first request takes 30-50 sec to wake up
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timer      = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+// ── Wake up server on page load ──
+// Sends a cheap ping so server is ready before student starts recording
+async function wakeUpServer() {
+  const banner = document.getElementById("serverBanner");
+  try {
+    // Try a quick ping first (2 sec timeout)
+    await fetchWithTimeout(BACKEND_URL + "/status", {}, 2000);
+    // If it responds fast, server was already awake — no banner needed
+    banner.style.display = "none";
+  } catch {
+    // Server is sleeping — show banner and ping again with long timeout
+    banner.style.display = "block";
+    banner.innerText     = "⏳ Server is waking up, please wait 30–40 seconds...";
+    try {
+      await fetchWithTimeout(BACKEND_URL + "/status", {}, 60000);
+      banner.innerText     = "✅ Server is ready! You can start recording.";
+      banner.style.background = "rgba(0,200,100,0.25)";
+      banner.style.border     = "1px solid rgba(0,200,100,0.5)";
+      setTimeout(() => { banner.style.display = "none"; }, 3000);
+    } catch {
+      banner.innerText = "⚠️ Server not responding. Try refreshing the page.";
+    }
+  }
+}
+wakeUpServer();
+
 // ── Load topic ──
 async function loadTopic() {
   try {
-    const res  = await fetch(BACKEND_URL + "/get-topic");
+    const res  = await fetchWithTimeout(BACKEND_URL + "/get-topic", {}, 60000);
     const data = await res.json();
     document.getElementById("topicText").innerText = data.topic || "No topic assigned yet";
   } catch {
@@ -306,17 +352,21 @@ let isRecording     = false;
 
 // ── Pick best audio MIME type ──
 function getSupportedMimeType() {
-  // Priority: webm (best Whisper support) → ogg → mp4 → browser default
+  // Try formats in order — Whisper supports: mp4, webm, ogg, wav, mp3
+  // iOS Safari only supports mp4, Android Chrome supports webm
   const types = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
+    "audio/mp4",                  // iOS Safari + some Android
+    "audio/webm;codecs=opus",     // Android Chrome
+    "audio/webm",                 // Android Chrome fallback
+    "audio/ogg;codecs=opus",      // Firefox
     "audio/ogg",
-    "audio/mp4",
-    ""
+    ""                            // browser default
   ];
   for (const t of types) {
-    if (t === "" || MediaRecorder.isTypeSupported(t)) return t;
+    if (t === "" || MediaRecorder.isTypeSupported(t)) {
+      console.log("[Audio] Using MIME type:", t || "browser default");
+      return t;
+    }
   }
   return "";
 }
@@ -324,11 +374,11 @@ function getSupportedMimeType() {
 // ── Get file extension from mime type ──
 function getExt(mimeType) {
   if (!mimeType) return "webm";
-  if (mimeType.includes("ogg"))  return "ogg";
   if (mimeType.includes("mp4"))  return "mp4";
+  if (mimeType.includes("ogg"))  return "ogg";
   if (mimeType.includes("mpeg")) return "mp3";
   if (mimeType.includes("wav"))  return "wav";
-  return "webm"; // default — works with Whisper
+  return "webm";
 }
 
 // ── Toggle mic (tap once = start, tap again = stop) ──
@@ -376,10 +426,13 @@ async function startRecording() {
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
     mediaRecorder.onstop = async () => {
-      const usedMime = mediaRecorder.mimeType || "audio/webm";
+      // Get the actual mime type the browser used (critical for Whisper)
+      const usedMime = mediaRecorder.mimeType || getSupportedMimeType() || "audio/webm";
       const blob     = new Blob(audioChunks, { type: usedMime });
       window.audioBlob     = blob;
       window.audioBlobMime = usedMime;
+
+      console.log("[Recording] Done — blob size:", blob.size, "mime:", usedMime);
 
       const audioEl = document.getElementById("audioPlayback");
       audioEl.src   = URL.createObjectURL(blob);
@@ -468,18 +521,22 @@ async function transcribeWithWhisper(blob, mimeType) {
   formData.append("audio", blob, filename);
 
   try {
-    const res  = await fetch(BACKEND_URL + "/transcribe", { method: "POST", body: formData });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[Whisper] Server error:", res.status, errText);
-      document.getElementById("speechText").innerText    = "Server error during transcription. Please try again.";
-      document.getElementById("correctedText").innerText = "Could not process speech.";
-      return;
-    }
+    // 90 second timeout — Whisper can take time, especially if server just woke up
+    const res  = await fetchWithTimeout(
+      BACKEND_URL + "/transcribe",
+      { method: "POST", body: formData },
+      90000
+    );
 
     const data = await res.json();
     console.log("[Whisper] Response:", data);
+
+    if (!res.ok) {
+      console.error("[Whisper] Server error:", res.status, data);
+      document.getElementById("speechText").innerText    = "Server error: " + (data.error || "unknown") + ". Please try again.";
+      document.getElementById("correctedText").innerText = "Could not process speech.";
+      return;
+    }
 
     if (data.transcript && data.transcript.trim()) {
       finalTranscript = data.transcript;
@@ -490,7 +547,11 @@ async function transcribeWithWhisper(blob, mimeType) {
     }
   } catch (err) {
     console.error("[Whisper] Fetch error:", err);
-    document.getElementById("speechText").innerText    = "Could not reach server. Check your internet connection.";
+    if (err.name === "AbortError") {
+      document.getElementById("speechText").innerText    = "Request timed out. Server may be busy — please try again.";
+    } else {
+      document.getElementById("speechText").innerText    = "Could not reach server. Check your internet and try again.";
+    }
     document.getElementById("correctedText").innerText = "Could not process speech.";
   }
 }
@@ -500,15 +561,23 @@ async function processTranscript(text) {
   document.getElementById("speechText").innerText    = text;
   document.getElementById("correctedText").innerText = "Correcting grammar... ⏳";
   try {
-    const res  = await fetch(BACKEND_URL + "/correct", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
+    const res  = await fetchWithTimeout(
+      BACKEND_URL + "/correct",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      },
+      60000
+    );
     const data = await res.json();
     document.getElementById("correctedText").innerText = data.corrected || "No correction returned.";
-  } catch {
-    document.getElementById("correctedText").innerText = "Could not connect to AI. Check your internet.";
+  } catch (err) {
+    if (err.name === "AbortError") {
+      document.getElementById("correctedText").innerText = "AI correction timed out. Please try again.";
+    } else {
+      document.getElementById("correctedText").innerText = "Could not connect to AI. Check your internet.";
+    }
   }
 }
 
@@ -527,13 +596,21 @@ async function submitAudio() {
   fd.append("pin",   student.pin);
 
   try {
-    await fetch(BACKEND_URL + "/upload", { method:"POST", body:fd });
+    await fetchWithTimeout(
+      BACKEND_URL + "/upload",
+      { method: "POST", body: fd },
+      60000
+    );
     btn.innerText = "✅ Submitted!";
     alert("Recording submitted successfully! ✅");
-  } catch {
+  } catch (err) {
     btn.disabled  = false;
     btn.innerText = "📤 Submit";
-    alert("Upload failed. Check your connection. ❌");
+    if (err.name === "AbortError") {
+      alert("Upload timed out. Server may be busy — please try again. ❌");
+    } else {
+      alert("Upload failed. Check your connection and try again. ❌");
+    }
   }
 }
 

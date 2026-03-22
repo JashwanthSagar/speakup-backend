@@ -307,6 +307,31 @@ if (localStorage.getItem("teacherLoggedIn") !== "true") {
   window.location.href = "teacher.html";
 }
 
+// ── Fetch with timeout — handles Render free tier sleep (30-50 sec wake up) ──
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timer      = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+// ── Wake server on load ──
+async function wakeUpServer() {
+  try {
+    await fetchWithTimeout(BACKEND_URL + "/status", {}, 2000);
+  } catch {
+    // Server sleeping — it will wake up when loadStatus() calls it with 60s timeout
+    console.log("[Server] Waking up...");
+  }
+}
+wakeUpServer();
+
 function toast(msg) {
   const t = document.getElementById("toast");
   t.innerText = msg;
@@ -322,7 +347,7 @@ function escapeHtml(s) {
 
 async function loadStatus() {
   try {
-    const res  = await fetch(BACKEND_URL + "/status");
+    const res  = await fetchWithTimeout(BACKEND_URL + "/status", {}, 60000);
     const data = await res.json();
     document.getElementById("todayTopic").innerText  = data.currentTopic || "None";
     document.getElementById("topicCount").innerText  = data.totalTopics  || 0;
@@ -338,7 +363,7 @@ async function loadStatus() {
 
 async function loadTopics() {
   try {
-    const res  = await fetch(BACKEND_URL + "/get-topics");
+    const res  = await fetchWithTimeout(BACKEND_URL + "/get-topics", {}, 60000);
     const data = await res.json();
     document.getElementById("topicsTextarea").value = (data.topics||[]).join("\n");
     document.getElementById("topicCount").innerText  = (data.topics||[]).length;
@@ -350,11 +375,11 @@ async function saveTopics() {
   const topics = raw.split("\n").map(t=>t.trim()).filter(t=>t.length>0);
   if (topics.length === 0) { toast("Please enter at least one topic."); return; }
   try {
-    const res  = await fetch(BACKEND_URL + "/set-topics", {
+    const res  = await fetchWithTimeout(BACKEND_URL + "/set-topics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topics })
-    });
+    }, 60000);
     const data = await res.json();
     toast("✅ " + data.count + " topics saved!");
     loadStatus();
@@ -365,11 +390,11 @@ async function overrideTopic() {
   const topic = document.getElementById("overrideTopic").value.trim();
   if (!topic) { toast("Please type a topic first."); return; }
   try {
-    await fetch(BACKEND_URL + "/set-topic", {
+    await fetchWithTimeout(BACKEND_URL + "/set-topic", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic })
-    });
+    }, 60000);
     document.getElementById("overrideTopic").value = "";
     toast("✅ Topic set: " + topic);
     loadStatus();
@@ -380,7 +405,7 @@ async function loadAudios() {
   const tbody = document.getElementById("audioList");
   tbody.innerHTML = `<tr class="empty"><td colspan="4">Loading...</td></tr>`;
   try {
-    const res  = await fetch(BACKEND_URL + "/audios");
+    const res  = await fetchWithTimeout(BACKEND_URL + "/audios", {}, 60000);
     const data = await res.json();
     document.getElementById("audioCount").innerText = data.length;
     if (data.length === 0) {
@@ -403,7 +428,7 @@ async function loadAudios() {
 async function manualClear() {
   if (!confirm("Delete ALL student recordings and data right now?")) return;
   try {
-    await fetch(BACKEND_URL + "/clear-all", { method:"DELETE" });
+    await fetchWithTimeout(BACKEND_URL + "/clear-all", { method: "DELETE" }, 60000);
     toast("✅ All data cleared.");
     loadAudios(); loadStatus();
   } catch { toast("❌ Clear failed."); }
