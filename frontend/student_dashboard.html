@@ -91,11 +91,7 @@ fetch(API+"/get-topic").then(r=>r.json())
   .catch(()=>{ document.getElementById("topicText").innerText="Could not load topic"; });
 
 // ── Speech Recognition ──
-const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-
-const SR = (!isMobile)
-  ? (window.SpeechRecognition || window.webkitSpeechRecognition || null)
-  : null;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 let rec=null, recActive=false, recFinal="", recLive="";
 
 function buildRec(){
@@ -106,7 +102,7 @@ function buildRec(){
     recLive="";
     for(let i=e.resultIndex;i<e.results.length;i++){
       if(e.results[i].isFinal) recFinal+=e.results[i][0].transcript+" ";
-      else recLive=e.results[i][0].transcript;
+      else recLive+=e.results[i][0].transcript;
     }
     renderSpeech();
   };
@@ -225,7 +221,7 @@ async function stopRec(){
 
   // Show STT text immediately if we got it
   const sttText=recFinal.trim();
-  if(!isMobile && sttText.length>2){
+  if(sttText.length>2){
     console.log("[Flow] Using STT:",sttText.substring(0,60));
     document.getElementById("speechBox").innerText=sttText;
     await doCorrect(sttText);
