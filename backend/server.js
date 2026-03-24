@@ -1,9 +1,10 @@
-const express = require("express");
-const cors    = require("cors");
-const multer  = require("multer");
-const fs      = require("fs");
-const path    = require("path");
-const OpenAI  = require("openai");
+const express  = require("express");
+const cors     = require("cors");
+const multer   = require("multer");
+const fs       = require("fs");
+const path     = require("path");
+const OpenAI   = require("openai");
+const FormData = require("form-data");
 
 const app = express();
 app.use(cors());
@@ -12,12 +13,12 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 if (!process.env.OPENAI_API_KEY) {
-  console.error("WARNING: OPENAI_API_KEY is not set!");
+  console.error("WARNING: OPENAI_API_KEY not set!");
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── File paths ──
+// ── Paths ──
 const uploadPath  = path.join(__dirname, "uploads");
 const recordsPath = path.join(__dirname, "records.json");
 const topicsPath  = path.join(__dirname, "topics.json");
@@ -33,7 +34,7 @@ if (!fs.existsSync(statePath)) {
   }, null, 2));
 }
 
-// ── In-memory job store ──
+// ── In-memory jobs ──
 const jobs = {};
 
 // ── Helpers ──
@@ -42,26 +43,22 @@ function writeState(s) { fs.writeFileSync(statePath, JSON.stringify(s, null, 2))
 function readTopics()  { return JSON.parse(fs.readFileSync(topicsPath)); }
 function todayStr()    { return new Date().toISOString().slice(0, 10); }
 
-// ── Auto clear every 24h ──
+// ── Auto clear ──
 function autoClearIfNeeded() {
-  const state = readState();
-  const today = todayStr();
+  const state = readState(), today = todayStr();
   if (state.lastClearDate === today) return;
-  console.log("[AutoClear] Running for", today);
-  try { fs.readdirSync(uploadPath).forEach(f => fs.unlinkSync(path.join(uploadPath, f))); }
-  catch (e) { console.error("[AutoClear]", e); }
+  console.log("[AutoClear]", today);
+  try { fs.readdirSync(uploadPath).forEach(f => fs.unlinkSync(path.join(uploadPath, f))); } catch {}
   fs.writeFileSync(recordsPath, "[]");
   state.lastClearDate = today;
   writeState(state);
 }
 
-// ── Auto topic every day ──
+// ── Auto topic ──
 function autoPickTopicIfNeeded() {
-  const state  = readState();
-  const topics = readTopics();
-  const today  = todayStr();
+  const state = readState(), topics = readTopics(), today = todayStr();
   if (state.lastTopicDate === today || topics.length === 0) return;
-  const idx           = state.topicIndex % topics.length;
+  const idx = state.topicIndex % topics.length;
   state.currentTopic  = topics[idx];
   state.topicIndex    = idx + 1;
   state.lastTopicDate = today;
@@ -74,47 +71,36 @@ autoPickTopicIfNeeded();
 setInterval(() => { autoClearIfNeeded(); autoPickTopicIfNeeded(); }, 60 * 60 * 1000);
 
 // ── Multer ──
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits:  { fileSize: 25 * 1024 * 1024 }
-});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-// ─────────────────────────────────────────────
+// ────────────────────────────────
 // ROUTES
-// ─────────────────────────────────────────────
+// ────────────────────────────────
 
 app.post("/upload", upload.single("audio"), (req, res) => {
   try {
-    const name     = (req.body.name || "student").replace(/[^a-zA-Z0-9]/g, "_");
-    const pin      = (req.body.pin  || "0000").replace(/[^a-zA-Z0-9]/g, "_");
-    const fileName = name + "_" + pin + "_" + Date.now() + ".webm";
-    fs.writeFileSync(path.join(uploadPath, fileName), req.file.buffer);
+    const name = (req.body.name || "student").replace(/[^a-zA-Z0-9]/g, "_");
+    const pin  = (req.body.pin  || "0000").replace(/[^a-zA-Z0-9]/g, "_");
+    const file = name + "_" + pin + "_" + Date.now() + ".webm";
+    fs.writeFileSync(path.join(uploadPath, file), req.file.buffer);
     const records = JSON.parse(fs.readFileSync(recordsPath));
-    records.push({ name: req.body.name, pin: req.body.pin, file: fileName });
+    records.push({ name: req.body.name, pin: req.body.pin, file });
     fs.writeFileSync(recordsPath, JSON.stringify(records, null, 2));
-    res.json({ message: "Uploaded successfully" });
-  } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ error: "Upload failed" });
-  }
+    res.json({ message: "Uploaded" });
+  } catch (e) { res.status(500).json({ error: "Upload failed" }); }
 });
 
 app.get("/audios", (req, res) => {
-  try { res.json(JSON.parse(fs.readFileSync(recordsPath))); }
-  catch { res.json([]); }
+  try { res.json(JSON.parse(fs.readFileSync(recordsPath))); } catch { res.json([]); }
 });
 
 app.delete("/clear-all", (req, res) => {
   try {
     fs.readdirSync(uploadPath).forEach(f => fs.unlinkSync(path.join(uploadPath, f)));
     fs.writeFileSync(recordsPath, "[]");
-    const state = readState();
-    state.lastClearDate = todayStr();
-    writeState(state);
-    res.json({ message: "All cleared" });
-  } catch (err) {
-    res.status(500).json({ error: "Clear failed" });
-  }
+    const state = readState(); state.lastClearDate = todayStr(); writeState(state);
+    res.json({ message: "Cleared" });
+  } catch { res.status(500).json({ error: "Clear failed" }); }
 });
 
 app.use("/uploads", express.static(uploadPath));
@@ -124,189 +110,153 @@ app.get("/get-topics", (req, res) => res.json({ topics: readTopics() }));
 
 app.post("/set-topics", (req, res) => {
   const { topics } = req.body;
-  if (!Array.isArray(topics)) return res.status(400).json({ error: "topics must be array" });
-  const cleaned = topics.map(t => t.trim()).filter(t => t.length > 0);
+  if (!Array.isArray(topics)) return res.status(400).json({ error: "array required" });
+  const cleaned = topics.map(t => t.trim()).filter(Boolean);
   fs.writeFileSync(topicsPath, JSON.stringify(cleaned, null, 2));
-  const state = readState();
-  state.topicIndex = 0; state.lastTopicDate = "";
-  writeState(state);
+  const state = readState(); state.topicIndex = 0; state.lastTopicDate = ""; writeState(state);
   autoPickTopicIfNeeded();
-  res.json({ message: "Topics saved", count: cleaned.length });
+  res.json({ message: "Saved", count: cleaned.length });
 });
 
 app.post("/set-topic", (req, res) => {
   const { topic } = req.body;
-  if (!topic || !topic.trim()) return res.status(400).json({ error: "Topic empty" });
-  const state = readState();
-  state.currentTopic  = topic.trim();
-  state.lastTopicDate = todayStr();
-  writeState(state);
-  res.json({ message: "Topic set", topic: state.currentTopic });
+  if (!topic || !topic.trim()) return res.status(400).json({ error: "empty" });
+  const state = readState(); state.currentTopic = topic.trim(); state.lastTopicDate = todayStr(); writeState(state);
+  res.json({ topic: state.currentTopic });
 });
 
 app.get("/status", (req, res) => {
-  const state  = readState();
-  const topics = readTopics();
-  res.json({
-    currentTopic:  state.currentTopic,
-    topicIndex:    state.topicIndex,
-    lastTopicDate: state.lastTopicDate,
-    lastClearDate: state.lastClearDate,
-    totalTopics:   topics.length,
-    serverTime:    new Date().toISOString()
-  });
+  const state = readState(), topics = readTopics();
+  res.json({ currentTopic: state.currentTopic, topicIndex: state.topicIndex,
+    lastTopicDate: state.lastTopicDate, lastClearDate: state.lastClearDate,
+    totalTopics: topics.length, serverTime: new Date().toISOString() });
 });
 
-// ─────────────────────────────────────────────
-// TRANSCRIPTION — Job polling system
-// POST /transcribe → returns jobId immediately
-// GET  /job/:id   → poll until done/error
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────────────────
+// TRANSCRIPTION — Job polling (POST → jobId → GET /job/:id)
+// ────────────────────────────────────────────────────────
 
 app.post("/transcribe", upload.single("audio"), (req, res) => {
-  if (!req.file || !req.file.buffer) {
-    return res.status(400).json({ error: "No audio received" });
-  }
-
-  const size = req.file.buffer.length;
-  const mime = req.file.mimetype || "";
-  console.log("[Transcribe] size:", size, "mime:", mime);
-
-  if (size < 1000) {
+  if (!req.file || req.file.buffer.length < 1000) {
     return res.json({ jobId: null, error: "too_short" });
   }
-
-  const jobId = "job_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+  const jobId = "j" + Date.now();
   jobs[jobId] = { status: "processing", transcript: "", error: null };
-
-  // Return jobId immediately — mobile gets response before Whisper starts
-  res.json({ jobId });
-
-  // Run Whisper in background
-  runWhisper(jobId, req.file.buffer, mime);
+  res.json({ jobId }); // respond immediately — don't block mobile
+  runWhisper(jobId, req.file.buffer, req.file.mimetype || "");
 });
 
-// ── Whisper background processor ──
+app.get("/job/:id", (req, res) => {
+  res.json(jobs[req.params.id] || { status: "not_found" });
+});
+
+// ────────────────────────────────────────────────────────
+// runWhisper — uses form-data + raw HTTPS post to OpenAI
+// This is the most reliable method — no SDK wrapper issues
+// ────────────────────────────────────────────────────────
 async function runWhisper(jobId, buffer, mime) {
-  try {
-    // Pick extension — Whisper uses this to detect format
-    let ext = "webm"; // Android Chrome default
-    if (mime.includes("mp4") || mime.includes("m4a")) ext = "mp4"; // iOS Safari
-    else if (mime.includes("ogg"))  ext = "ogg";
-    else if (mime.includes("wav"))  ext = "wav";
-    else if (mime.includes("mpeg") || mime.includes("mp3")) ext = "mp3";
+  // Figure out extension
+  let ext = "webm";
+  if (mime.includes("mp4") || mime.includes("m4a")) ext = "mp4";
+  else if (mime.includes("ogg")) ext = "ogg";
+  else if (mime.includes("wav")) ext = "wav";
+  else if (mime.includes("mp3") || mime.includes("mpeg")) ext = "mp3";
 
-    console.log("[Whisper]", jobId, "size:", buffer.length, "ext:", ext, "mime:", mime);
+  // Try formats: detected → mp4 → webm → ogg
+  const formats = [...new Set([ext, "mp4", "webm", "ogg"])];
+  console.log("[Whisper]", jobId, "size:", buffer.length, "mime:", mime, "formats:", formats);
 
-    // ── SDK v4.28 correct method: pass Buffer directly as File ──
-    // Do NOT use toFile(stream,...) — streams are unreliable in background jobs
-    // Use the File constructor with the raw buffer instead
-    const audioFile = new File([buffer], "recording." + ext, {
-      type: ext === "webm" ? "audio/webm" :
-            ext === "mp4"  ? "audio/mp4"  :
-            ext === "ogg"  ? "audio/ogg"  :
-            ext === "wav"  ? "audio/wav"  :
-            ext === "mp3"  ? "audio/mpeg" : "audio/webm"
-    });
-
-    const response = await openai.audio.transcriptions.create({
-      file:     audioFile,
-      model:    "whisper-1",
-      language: "en"
-    });
-
-    const transcript = (response.text || "").trim();
-    console.log("[Whisper]", jobId, "SUCCESS:", transcript.substring(0, 80));
-    jobs[jobId] = { status: "done", transcript, error: null };
-
-  } catch (err) {
-    console.error("[Whisper]", jobId, "FAILED:", err.message);
-    if (err.status)  console.error("[Whisper] HTTP status:", err.status);
-    if (err.error)   console.error("[Whisper] Detail:", JSON.stringify(err.error));
-
-    // ── Retry: try mp4 format if first attempt failed ──
-    if (!mime.includes("mp4")) {
-      try {
-        console.log("[Whisper]", jobId, "retrying as mp4...");
-        const retryFile = new File([buffer], "recording.mp4", { type: "audio/mp4" });
-        const r2 = await openai.audio.transcriptions.create({
-          file:     retryFile,
-          model:    "whisper-1",
-          language: "en"
-        });
-        const t2 = (r2.text || "").trim();
-        console.log("[Whisper]", jobId, "retry SUCCESS:", t2.substring(0, 80));
-        jobs[jobId] = { status: "done", transcript: t2, error: null };
-        return;
-      } catch (e2) {
-        console.error("[Whisper]", jobId, "retry FAILED:", e2.message);
-      }
-    }
-
-    // ── Second retry: try as ogg ──
+  for (const fmt of formats) {
+    const tempFile = path.join(__dirname, jobId + "." + fmt);
     try {
-      console.log("[Whisper]", jobId, "retrying as ogg...");
-      const oggFile = new File([buffer], "recording.ogg", { type: "audio/ogg" });
-      const r3 = await openai.audio.transcriptions.create({
-        file:     oggFile,
-        model:    "whisper-1",
-        language: "en"
-      });
-      const t3 = (r3.text || "").trim();
-      console.log("[Whisper]", jobId, "ogg retry SUCCESS:", t3.substring(0, 80));
-      jobs[jobId] = { status: "done", transcript: t3, error: null };
-      return;
-    } catch (e3) {
-      console.error("[Whisper]", jobId, "ogg retry FAILED:", e3.message);
-    }
+      fs.writeFileSync(tempFile, buffer);
 
-    jobs[jobId] = { status: "error", transcript: "", error: err.message };
+      const form = new FormData();
+      form.append("file", fs.createReadStream(tempFile), {
+        filename:    "audio." + fmt,
+        contentType: fmt === "mp4" ? "audio/mp4" :
+                     fmt === "ogg" ? "audio/ogg" :
+                     fmt === "wav" ? "audio/wav" :
+                     fmt === "mp3" ? "audio/mpeg" : "audio/webm"
+      });
+      form.append("model",    "whisper-1");
+      form.append("language", "en");
+
+      // Use Node's built-in https to call OpenAI directly
+      const transcript = await new Promise((resolve, reject) => {
+        const https    = require("https");
+        const formBuf  = form.getBuffer();
+        const headers  = {
+          ...form.getHeaders(),
+          "Authorization": "Bearer " + process.env.OPENAI_API_KEY,
+          "Content-Length": formBuf.length
+        };
+
+        const req = https.request({
+          hostname: "api.openai.com",
+          path:     "/v1/audio/transcriptions",
+          method:   "POST",
+          headers
+        }, (resp) => {
+          let body = "";
+          resp.on("data", c => body += c);
+          resp.on("end", () => {
+            try {
+              const parsed = JSON.parse(body);
+              console.log("[Whisper]", jobId, fmt, "response:", body.substring(0, 150));
+              if (parsed.text)  resolve(parsed.text.trim());
+              else reject(new Error(parsed.error?.message || "no text in response"));
+            } catch (e) { reject(new Error("parse error: " + body.substring(0, 100))); }
+          });
+        });
+
+        req.on("error", reject);
+        req.write(formBuf);
+        req.end();
+      });
+
+      try { fs.unlinkSync(tempFile); } catch {}
+      console.log("[Whisper]", jobId, fmt, "SUCCESS:", transcript.substring(0, 80));
+      jobs[jobId] = { status: "done", transcript, error: null };
+      setTimeout(() => delete jobs[jobId], 10 * 60 * 1000);
+      return;
+
+    } catch (e) {
+      try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch {}
+      console.error("[Whisper]", jobId, fmt, "failed:", e.message);
+    }
   }
 
-  // Clean up job after 10 minutes
-  setTimeout(() => { delete jobs[jobId]; }, 10 * 60 * 1000);
+  console.error("[Whisper]", jobId, "ALL FORMATS FAILED");
+  jobs[jobId] = { status: "error", transcript: "", error: "Transcription failed for all formats" };
+  setTimeout(() => delete jobs[jobId], 10 * 60 * 1000);
 }
 
-// GET /job/:id — frontend polls this
-app.get("/job/:id", (req, res) => {
-  const job = jobs[req.params.id];
-  if (!job) return res.json({ status: "not_found" });
-  res.json(job);
-});
-
-// ─────────────────────────────────────────────
-// POST /correct — AI grammar correction
-// ─────────────────────────────────────────────
+// ── Grammar correction ──
 app.post("/correct", async (req, res) => {
   try {
     const { text } = req.body;
     if (!text || !text.trim()) return res.json({ corrected: "No speech detected." });
-
-    const response = await openai.chat.completions.create({
+    const r = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "You are an English grammar correction assistant. Correct the grammar of the given text and return only the corrected sentence. Do not add any explanation." },
+        { role: "system", content: "Correct the English grammar. Return only the corrected sentence." },
         { role: "user",   content: text }
       ]
     });
-
-    res.json({ corrected: response.choices?.[0]?.message?.content || "No correction found" });
-
-  } catch (err) {
-    console.error("AI Error:", err);
-    res.status(500).json({ corrected: "AI Error: " + (err.message || "Unknown") });
+    res.json({ corrected: r.choices?.[0]?.message?.content || text });
+  } catch (e) {
+    console.error("[Correct]", e.message);
+    res.status(500).json({ corrected: "AI error. Try again." });
   }
 });
 
-// ── Start server + self-ping to prevent Render sleep ──
+// ── Start ──
 app.listen(PORT, () => {
-  console.log("SpeakUp server running on port " + PORT);
-
-  // Ping self every 14 min — Render free tier sleeps after 15 min
+  console.log("SpeakUp running on port", PORT);
   setInterval(() => {
-    const http = require("http");
-    http.get("http://localhost:" + PORT + "/status", r => {
-      console.log("[KeepAlive] OK:", r.statusCode);
-    }).on("error", e => console.log("[KeepAlive] Failed:", e.message));
+    require("http").get("http://localhost:" + PORT + "/status",
+      r => console.log("[Ping]", r.statusCode)
+    ).on("error", e => console.log("[Ping fail]", e.message));
   }, 14 * 60 * 1000);
 });
