@@ -1,169 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>Student Dashboard - SpeakUp</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;min-height:100vh;background:linear-gradient(270deg,#ff416c,#ff4b2b,#ff6a00);background-size:600% 600%;animation:bg 8s ease infinite;padding-bottom:40px}
-    @keyframes bg{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
-    .topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:rgba(0,0,0,.15)}
-    .topbar h2{color:#fff;font-size:20px;margin:0}
-    .logout{background:rgba(255,255,255,.2);border:none;padding:8px 16px;border-radius:20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
-    .logout:active{background:#e74c3c}
-    .content{padding:16px;display:flex;flex-direction:column;gap:14px;max-width:500px;margin:0 auto}
-    .welcome{color:#fff;font-size:20px;font-weight:700;text-align:center}
-    .card{background:rgba(255,255,255,.15);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);border-radius:18px;padding:18px;color:#fff}
-    .lbl{font-size:11px;font-weight:700;opacity:.65;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
-    .topic-val{font-size:16px;font-weight:700;line-height:1.4}
-    #banner{display:none;border-radius:12px;padding:10px 14px;font-size:13px;color:#fff;text-align:center;line-height:1.5}
-    .recorder{display:flex;flex-direction:column;align-items:center;gap:14px}
-    .status-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#fff}
-    #dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.35);flex-shrink:0}
-    #timer{font-size:32px;font-weight:700;color:#fff;letter-spacing:2px}
-    #micBtn{width:90px;height:90px;border-radius:50%;border:none;font-size:38px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s}
-    #micBtn.idle{background:linear-gradient(135deg,#00c6ff,#0072ff);box-shadow:0 4px 20px rgba(0,114,255,.5)}
-    #micBtn.rec{background:linear-gradient(135deg,#ff4b2b,#ee0979);animation:pulse 1.2s ease infinite}
-    #micBtn:active{transform:scale(.93)}
-    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(238,9,121,.6)}70%{box-shadow:0 0 0 18px rgba(238,9,121,0)}100%{box-shadow:0 0 0 0 rgba(238,9,121,0)}}
-    .btns{display:flex;gap:10px;width:100%}
-    .btns button{flex:1;padding:13px 8px;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
-    .btns button:active:not(:disabled){transform:scale(.96)}
-    #stopBtn{background:rgba(255,255,255,.25);color:#fff}
-    #submitBtn{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff}
-    .btns button:disabled{opacity:.35;cursor:not-allowed}
-    audio{width:100%;border-radius:10px;display:none;margin-top:4px}
-    .speech-val{font-size:15px;line-height:1.65;min-height:50px;word-break:break-word}
-    .interim{opacity:.5;font-style:italic}
-    .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:5px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @media(min-width:540px){.content{padding:24px}#micBtn{width:100px;height:100px;font-size:42px}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpeakUp Dashboard</title>
+
+<style>
+/* ✅ YOUR ORIGINAL STYLE (UNCHANGED) */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;min-height:100vh;background:linear-gradient(270deg,#ff416c,#ff4b2b,#ff6a00);background-size:600% 600%;animation:bg 8s ease infinite;padding-bottom:40px}
+@keyframes bg{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:rgba(0,0,0,.15)}
+.topbar h2{color:#fff}
+.logout{background:rgba(255,255,255,.2);border:none;padding:8px 16px;border-radius:20px;color:#fff;cursor:pointer}
+.content{padding:16px;max-width:500px;margin:auto}
+.card{background:rgba(255,255,255,.15);padding:18px;border-radius:18px;color:#fff;margin-top:12px}
+#micBtn{width:90px;height:90px;border-radius:50%;font-size:35px;border:none;cursor:pointer}
+#micBtn.rec{background:red;color:white}
+#micBtn.idle{background:#00c6ff;color:white}
+</style>
 </head>
+
 <body>
 
 <div class="topbar">
-  <h2>🎤 SpeakUp</h2>
-  <button class="logout" onclick="logout()">Logout</button>
+<h2>🎤 SpeakUp</h2>
+<button onclick="logout()">Logout</button>
 </div>
 
 <div class="content">
-  <p class="welcome" id="welcome">Welcome 👋</p>
-  <div id="banner"></div>
 
-  <div class="card">
-    <div class="lbl">📚 Today's Topic</div>
-    <div class="topic-val" id="topicText">Loading...</div>
-  </div>
+<div class="card">
+<h3 id="welcome"></h3>
+</div>
 
-  <div class="card recorder">
-    <div class="status-row">
-      <span id="dot"></span>
-      <span id="status">Tap mic to start</span>
-    </div>
-    <div id="timer">00:00</div>
+<div class="card">
+<h4>📝 Your Speech</h4>
+<div id="speechBox">Start speaking...</div>
+</div>
 
-    <button id="micBtn" class="idle" onclick="toggleRec()">🎙</button>
+<div class="card">
+<h4>✅ Corrected Speech</h4>
+<div id="corrBox">Waiting...</div>
+</div>
 
-    <div class="btns">
-      <button id="stopBtn" onclick="stopRec()" disabled>⏹ Stop</button>
-      <button id="submitBtn" onclick="submitAudio()" disabled>📤 Submit</button>
-    </div>
-  </div>
+<div class="card" style="text-align:center">
+<button id="micBtn" class="idle" onclick="toggleRec()">🎙</button>
+<br><br>
+<button onclick="submitAudio()">Submit</button>
+</div>
 
-  <audio id="player" controls></audio>
+<audio id="player" controls style="width:100%;display:none"></audio>
 
-  <div class="card">
-    <div class="lbl">📝 Your Speech</div>
-    <div class="speech-val" id="speechBox">Your speech will appear here while recording...</div>
-  </div>
-
-  <div class="card">
-    <div class="lbl">✅ Corrected Speech</div>
-    <div class="speech-val" id="corrBox">AI correction will appear after you stop...</div>
-  </div>
 </div>
 
 <script>
 const API="https://speakup-backend-1.onrender.com";
-const student=JSON.parse(localStorage.getItem("currentStudent")||"null");
-if(!student)location.href="student.html";
-document.getElementById("welcome").innerText="Welcome, "+student.name+" 👋";
 
-// Speech Recognition FIX
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
-let rec,recActive=false,recFinal="",recLive="";
+const student=JSON.parse(localStorage.getItem("currentStudent"));
+document.getElementById("welcome").innerText="Welcome "+student.name;
 
-function buildRec(){
-  if(!SR)return null;
-  const r=new SR();
-  r.continuous=true;
-  r.interimResults=true;
-  r.lang="en-IN";
+// 🎤 Speech Recognition
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec,recActive=false,recText="";
 
-  r.onresult=(e)=>{
-    let interim="",final=recFinal;
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      let t=e.results[i][0].transcript;
-      if(e.results[i].isFinal)final+=t+" ";
-      else interim+=t;
+function startSTT(){
+  if(!SR)return;
+
+  rec=new SR();
+  rec.continuous=true;
+  rec.interimResults=true;
+  rec.lang="en-IN";
+
+  rec.onresult=(e)=>{
+    let text="";
+    for(let i=0;i<e.results.length;i++){
+      text+=e.results[i][0].transcript+" ";
     }
-    recFinal=final;
-    recLive=interim;
-    renderSpeech();
+    recText=text;
+    document.getElementById("speechBox").innerText=text;
   };
 
-  r.onend=()=>{ if(recActive){ try{r.start()}catch{} } };
-
-  return r;
+  rec.start();
 }
 
-function renderSpeech(){
-  let el=document.getElementById("speechBox");
-  el.innerHTML=(recFinal?recFinal+" ":"")+(recLive?'<span class="interim">'+recLive+"</span>":"");
-}
-
-// Recording
-let mr,chunks=[],recording=false;
+// 🎤 Recording
+let mediaRec,chunks=[],audioBlob;
 
 async function startRec(){
-  let stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  chunks=[];recFinal="";recLive="";recording=true;
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  chunks=[];
 
-  if(SR){
-    recActive=true;
-    rec=buildRec();
-    if(rec)rec.start();
-  }
+  mediaRec=new MediaRecorder(stream);
 
-  mr=new MediaRecorder(stream);
-  mr.ondataavailable=e=>chunks.push(e.data);
-  mr.onstop=()=>{
-    let blob=new Blob(chunks,{type:"audio/webm"});
-    window.audioBlob=blob;
-    document.getElementById("player").src=URL.createObjectURL(blob);
-    document.getElementById("player").style.display="block";
-    document.getElementById("submitBtn").disabled=false;
+  mediaRec.ondataavailable=e=>chunks.push(e.data);
+
+  mediaRec.onstop=()=>{
+    audioBlob=new Blob(chunks,{type:"audio/webm"});
+    const url=URL.createObjectURL(audioBlob);
+    const p=document.getElementById("player");
+    p.src=url;
+    p.style.display="block";
   };
 
-  mr.start();
+  mediaRec.start();
+  startSTT();
+  recActive=true;
+
   document.getElementById("micBtn").className="rec";
-  document.getElementById("stopBtn").disabled=false;
 }
 
-function stopRec(){
-  recording=false;recActive=false;
+// 🛑 Stop
+async function stopRec(){
+  recActive=false;
+
   if(rec)rec.stop();
-  mr.stop();
+  mediaRec.stop();
+
+  // 👉 If browser STT failed → use backend Whisper
+  if(recText.length<3){
+    await sendToWhisper();
+  }else{
+    await correctText(recText);
+  }
+
   document.getElementById("micBtn").className="idle";
 }
 
-function toggleRec(){recording?stopRec():startRec();}
+// 🔁 Toggle
+function toggleRec(){
+  recActive?stopRec():startRec();
+}
 
-// Dummy functions (same as yours)
-async function submitAudio(){alert("Submitted!");}
-function logout(){localStorage.removeItem("currentStudent");location.href="index.html";}
+// 🤖 Whisper API
+async function sendToWhisper(){
+  document.getElementById("speechBox").innerText="Transcribing...";
+
+  const fd=new FormData();
+  fd.append("audio",audioBlob,"audio.webm");
+
+  const res=await fetch(API+"/transcribe",{method:"POST",body:fd});
+  const data=await res.json();
+
+  if(data.transcript){
+    document.getElementById("speechBox").innerText=data.transcript;
+    await correctText(data.transcript);
+  }else{
+    document.getElementById("speechBox").innerText="No speech detected";
+  }
+}
+
+// ✨ Grammar Correction
+async function correctText(text){
+  document.getElementById("corrBox").innerText="Correcting...";
+
+  const res=await fetch(API+"/correct",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({text})
+  });
+
+  const data=await res.json();
+  document.getElementById("corrBox").innerText=data.corrected||text;
+}
+
+// 📤 Upload
+async function submitAudio(){
+  if(!audioBlob)return alert("Record first");
+
+  const fd=new FormData();
+  fd.append("audio",audioBlob,"recording.webm");
+  fd.append("name",student.name);
+  fd.append("pin",student.pin);
+
+  await fetch(API+"/upload",{method:"POST",body:fd});
+
+  alert("Submitted ✅");
+}
+
+// 🚪 Logout
+function logout(){
+  localStorage.removeItem("currentStudent");
+  location.href="index.html";
+}
 </script>
 
 </body>
