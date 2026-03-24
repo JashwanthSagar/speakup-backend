@@ -63,144 +63,270 @@
 <script>
 const API = "https://speakup-backend-1.onrender.com";
 
-let mediaRecorder, chunks = [], audioBlob;
-let recording = false;
+const student = JSON.parse(localStorage.getItem("currentStudent") || "null");
+if (!student) location.href = "student.html";
+document.getElementById("welcome").innerText = "Welcome, " + student.name + " 👋";
 
-// 🎤 Start Recording
-async function startRec() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+function showBanner(msg, col) {
+  const b = document.getElementById("banner");
+  b.style.cssText = "display:block;border-radius:12px;padding:10px 14px;font-size:13px;color:#fff;text-align:center;line-height:1.5;" +
+    (col==="green" ? "background:rgba(0,200,100,.25);border:1px solid rgba(0,200,100,.5)"
+                   : "background:rgba(255,150,0,.25);border:1px solid rgba(255,150,0,.5)");
+  b.innerText = msg;
+}
+function hideBanner(){ document.getElementById("banner").style.display="none"; }
 
-    chunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-      audioBlob = new Blob(chunks, { type: "audio/webm" });
-
-      console.log("Blob size:", audioBlob.size);
-
-      const player = document.getElementById("player");
-      player.src = URL.createObjectURL(audioBlob);
-      player.style.display = "block";
-
-      // 👉 Send to Whisper
-      await sendToWhisper();
-    };
-
-    mediaRecorder.start(1000); // important for mobile
-    recording = true;
-
-    document.getElementById("micBtn").className = "rec";
-    document.getElementById("speechBox").innerText = "Recording... Speak clearly";
-
-  } catch (err) {
-    alert("Please allow microphone access");
-    console.error(err);
+// Wake server
+(async()=>{
+  try{ const c=new AbortController(); setTimeout(()=>c.abort(),3000); await fetch(API+"/status",{signal:c.signal}); }
+  catch{
+    showBanner("⏳ Server waking up, please wait...","orange");
+    try{ await fetch(API+"/status"); showBanner("✅ Server ready!","green"); setTimeout(hideBanner,2000); }
+    catch{ showBanner("⚠️ Server offline. Please refresh.","orange"); }
   }
-}
+})();
 
-// 🛑 Stop Recording
-function stopRec() {
-  if (!mediaRecorder) return;
+fetch(API+"/get-topic").then(r=>r.json())
+  .then(d=>{ document.getElementById("topicText").innerText=d.topic||"No topic yet"; })
+  .catch(()=>{ document.getElementById("topicText").innerText="Could not load topic"; });
 
-  mediaRecorder.stop();
-  recording = false;
+// ── Speech Recognition ──
+const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
 
-  document.getElementById("micBtn").className = "idle";
-  document.getElementById("speechBox").innerText = "Processing...";
-}
+const SR = (!isMobile)
+  ? (window.SpeechRecognition || window.webkitSpeechRecognition || null)
+  : null;
+let rec=null, recActive=false, recFinal="", recLive="";
 
-// 🔁 Toggle
-function toggleRec() {
-  recording ? stopRec() : startRec();
-}
-
-// 🤖 Send to Whisper
-async function sendToWhisper() {
-  const speechEl = document.getElementById("speechBox");
-  speechEl.innerText = "Transcribing...";
-
-  if (!audioBlob || audioBlob.size < 1000) {
-    speechEl.innerText = "Speak longer (at least 2 seconds)";
-    return;
-  }
-
-  const fd = new FormData();
-  fd.append("audio", audioBlob, "audio.webm");
-
-  try {
-    const res = await fetch(API + "/transcribe", {
-      method: "POST",
-      body: fd
-    });
-
-    const data = await res.json();
-
-    if (data.transcript) {
-      speechEl.innerText = data.transcript;
-      await correctText(data.transcript);
-    } else {
-      speechEl.innerText = "No speech detected";
+function buildRec(){
+  if(!SR) return null;
+  const r=new SR();
+  r.continuous=true; r.interimResults=true; r.lang="en-IN";
+  r.onresult=e=>{
+    recLive="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) recFinal+=e.results[i][0].transcript+" ";
+      else recLive=e.results[i][0].transcript;
     }
+    renderSpeech();
+  };
+  r.onerror=e=>{ if(e.error!=="no-speech"&&e.error!=="aborted") console.warn("[STT]",e.error); };
+  r.onend=()=>{
+    if(recActive){
+      setTimeout(()=>{
+        if(!recActive) return;
+        try{ r.start(); }
+        catch(e){ setTimeout(()=>{ if(recActive){ rec=buildRec(); try{rec.start();}catch(e2){} } },300); }
+      },200);
+    }
+  };
+  return r;
+}
 
-  } catch (err) {
-    speechEl.innerText = "Error connecting to server";
-    console.error(err);
+function renderSpeech(){
+  const el=document.getElementById("speechBox");
+  const f=recFinal.trim(), l=recLive.trim();
+  if(!f&&!l){ el.innerHTML='<span style="opacity:.45">Listening...</span>'; return; }
+  el.innerHTML=(f?f+" ":"")+(l?'<span class="interim">'+l+"</span>":"");
+}
+
+// ── MediaRecorder ──
+let mr=null, chunks=[], timerInt=null, secs=0, recording=false;
+let blobResolve=null; // promise resolver for blob ready
+
+function bestMime(){
+  for(const m of ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus","audio/ogg",""])
+    if(!m||MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+function getExt(m){ return !m?"webm":m.includes("mp4")?"mp4":m.includes("ogg")?"ogg":"webm"; }
+function toggleRec(){ recording?stopRec():startRec(); }
+
+async function startRec(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[]; recFinal=""; recLive=""; secs=0; recording=true; blobResolve=null;
+
+    document.getElementById("speechBox").innerHTML=SR
+      ?'<span style="opacity:.45">Listening...</span>'
+      :'Recording... text will appear after Stop.';
+    document.getElementById("corrBox").innerText="AI correction will appear after you stop...";
+    document.getElementById("player").style.display="none";
+
+    if(SR){ recActive=true; rec=buildRec(); try{rec.start();}catch(e){console.warn("[STT]",e.message);} }
+
+    const mime=bestMime();
+    mr=new MediaRecorder(stream,mime?{mimeType:mime}:{});
+    mr.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunks.push(e.data); };
+
+    // Use a promise so stopRec can AWAIT the blob being ready
+    const blobReady=new Promise(resolve=>{ blobResolve=resolve; });
+    mr.onstop=()=>{
+      const usedMime=mr.mimeType||mime||"audio/webm";
+      const blob=new Blob(chunks,{type:usedMime});
+      console.log("[Rec] blob size:",blob.size,"mime:",usedMime);
+      window.audioBlob=blob; window.audioBlobMime=usedMime;
+      const p=document.getElementById("player");
+      p.src=URL.createObjectURL(blob); p.style.display="block";
+      document.getElementById("submitBtn").disabled=false;
+      blobResolve({blob,mime:usedMime}); // signal blob is ready
+    };
+
+    mr.start(1000);
+    document.getElementById("micBtn").className="rec";
+    document.getElementById("micBtn").innerText="⏹";
+    document.getElementById("status").innerText="Recording...";
+    document.getElementById("dot").style.background="#ff4b2b";
+    document.getElementById("stopBtn").disabled=false;
+    document.getElementById("submitBtn").disabled=true;
+    window.activeStream=stream;
+
+    timerInt=setInterval(()=>{
+      secs++;
+      const m=String(Math.floor(secs/60)).padStart(2,"0");
+      const s=String(secs%60).padStart(2,"0");
+      document.getElementById("timer").innerText=m+":"+s;
+    },1000);
+
+    // Store blobReady promise for stopRec to await
+    window.blobReady=blobReady;
+
+  }catch(e){
+    recording=false;
+    alert("Mic access required. Please allow microphone permission.");
+    console.error("Mic:",e);
   }
 }
 
-// ✨ Grammar Correction
-async function correctText(text) {
-  const corrEl = document.getElementById("corrBox");
-  corrEl.innerText = "Correcting...";
+async function stopRec(){
+  if(!mr||mr.state==="inactive") return;
+  recording=false; recActive=false;
 
-  try {
-    const res = await fetch(API + "/correct", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
+  // Stop STT first
+  if(rec){ try{rec.stop();}catch(e){} rec=null; }
 
-    const data = await res.json();
-    corrEl.innerText = data.corrected || text;
+  // Flush interim to final
+  if(recLive.trim()){ recFinal+=recLive.trim()+" "; recLive=""; }
 
-  } catch {
-    corrEl.innerText = "Correction failed";
+  // Stop media recorder
+  mr.stop();
+  clearInterval(timerInt);
+  if(window.activeStream) window.activeStream.getTracks().forEach(t=>t.stop());
+
+  document.getElementById("micBtn").className="idle";
+  document.getElementById("micBtn").innerText="🎙";
+  document.getElementById("status").innerText="Processing...";
+  document.getElementById("dot").style.background="orange";
+  document.getElementById("stopBtn").disabled=true;
+
+  // WAIT for blob to be fully ready before doing anything
+  const {blob, mime} = await window.blobReady;
+  console.log("[Stop] blob ready:",blob.size,"bytes");
+
+  // Show STT text immediately if we got it
+  const sttText=recFinal.trim();
+  if(!isMobile && sttText.length>2){
+    console.log("[Flow] Using STT:",sttText.substring(0,60));
+    document.getElementById("speechBox").innerText=sttText;
+    await doCorrect(sttText);
+  } else {
+    console.log("[Flow] No STT, using Whisper. blob:",blob.size);
+    await doWhisper(blob, mime);
   }
+
+  document.getElementById("status").innerText="Tap mic to record again";
+  document.getElementById("dot").style.background="rgba(255,255,255,.4)";
 }
 
-// 📤 Submit
-async function submitAudio() {
-  if (!audioBlob) {
-    alert("Record first!");
+// ── Whisper via job polling ──
+async function doWhisper(blob, mime){
+  const sEl=document.getElementById("speechBox");
+  const cEl=document.getElementById("corrBox");
+
+  if(blob.size<500){
+    sEl.innerText="Recording too short. Please speak for at least 2 seconds.";
+    cEl.innerText="Nothing to correct.";
     return;
   }
 
-  const student = JSON.parse(localStorage.getItem("currentStudent"));
+  sEl.innerHTML='<span class="spin"></span>Sending to server...';
+  console.log("[Whisper] sending blob:",blob.size,"mime:",mime,"ext:",getExt(mime));
 
-  const fd = new FormData();
-  fd.append("audio", audioBlob, "recording.webm");
-  fd.append("name", student.name);
-  fd.append("pin", student.pin);
+  const fd=new FormData();
+  fd.append("audio", blob, "audio."+getExt(mime));
 
-  await fetch(API + "/upload", {
-    method: "POST",
-    body: fd
-  });
+  let jobId;
+  try{
+    const r=await fetch(API+"/transcribe",{method:"POST",body:fd});
+    console.log("[Whisper] POST status:",r.status);
+    const d=await r.json();
+    console.log("[Whisper] POST response:",JSON.stringify(d));
+    if(d.error==="too_short"){ sEl.innerText="Too short. Speak for at least 2 seconds."; return; }
+    jobId=d.jobId;
+    if(!jobId){ sEl.innerText="Server error starting job. Please try again."; return; }
+    console.log("[Whisper] jobId:",jobId);
+  }catch(e){
+    console.error("[Whisper] POST failed:",e.name,e.message);
+    sEl.innerText="Failed to send audio ("+e.message+"). Check connection and try again.";
+    return;
+  }
 
-  alert("Submitted ✅");
+  sEl.innerHTML='<span class="spin"></span>Transcribing...';
+
+  // Poll every 3 seconds
+  let tries=0;
+  while(tries<40){
+    await new Promise(r=>setTimeout(r,3000));
+    tries++;
+    try{
+      const r=await fetch(API+"/job/"+jobId);
+      const j=await r.json();
+      console.log("[Poll] attempt",tries,"status:",j.status);
+      if(j.status==="done"){
+        if(j.transcript&&j.transcript.trim()){
+          sEl.innerText=j.transcript.trim();
+          await doCorrect(j.transcript.trim());
+        } else {
+          sEl.innerText="No speech detected. Please speak clearly and try again.";
+          cEl.innerText="Nothing to correct.";
+        }
+        return;
+      }
+      if(j.status==="error"){ sEl.innerText="Transcription failed: "+j.error+". Please try again."; return; }
+      sEl.innerHTML='<span class="spin"></span>Transcribing'+".".repeat((tries%3)+1);
+    }catch(e){ console.warn("[Poll] error:",e.message); }
+  }
+  sEl.innerText="Timed out. Please try again with a shorter recording.";
 }
 
-// 🚪 Logout
-function logout() {
-  localStorage.removeItem("currentStudent");
-  location.href = "index.html";
+// ── AI Grammar Correction ──
+async function doCorrect(text){
+  const el=document.getElementById("corrBox");
+  el.innerHTML='<span class="spin"></span>Correcting grammar...';
+  try{
+    const r=await fetch(API+"/correct",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+    const d=await r.json();
+    el.innerText=d.corrected||text;
+  }catch(e){ el.innerText="Could not connect to AI. Please try again."; }
 }
+
+// ── Submit ──
+async function submitAudio(){
+  if(!window.audioBlob){ alert("Please record first!"); return; }
+  const btn=document.getElementById("submitBtn");
+  btn.disabled=true; btn.innerText="Uploading...";
+  const fd=new FormData();
+  fd.append("audio",window.audioBlob,"recording."+getExt(window.audioBlobMime||""));
+  fd.append("name",student.name); fd.append("pin",student.pin);
+  try{
+    await fetch(API+"/upload",{method:"POST",body:fd});
+    btn.innerText="✅ Submitted!"; alert("Submitted! ✅");
+  }catch{
+    btn.disabled=false; btn.innerText="📤 Submit"; alert("Upload failed. ❌");
+  }
+}
+
+function logout(){ localStorage.removeItem("currentStudent"); location.href="index.html"; }
 </script>
-
 </body>
 </html>
