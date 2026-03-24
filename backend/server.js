@@ -167,12 +167,9 @@ async function runWhisper(jobId, buffer, mime) {
   console.log("[Whisper]", jobId, "size:", buffer.length, "mime:", mime, "formats:", formats);
 
   for (const fmt of formats) {
-    const tempFile = path.join(__dirname, jobId + "." + fmt);
     try {
-      fs.writeFileSync(tempFile, buffer);
-
       const form = new FormData();
-      form.append("file", fs.createReadStream(tempFile), {
+      form.append("file", buffer, {
         filename:    "audio." + fmt,
         contentType: fmt === "mp4" ? "audio/mp4" :
                      fmt === "ogg" ? "audio/ogg" :
@@ -215,14 +212,12 @@ async function runWhisper(jobId, buffer, mime) {
         req.end();
       });
 
-      try { fs.unlinkSync(tempFile); } catch {}
       console.log("[Whisper]", jobId, fmt, "SUCCESS:", transcript.substring(0, 80));
       jobs[jobId] = { status: "done", transcript, error: null };
       setTimeout(() => delete jobs[jobId], 10 * 60 * 1000);
       return;
 
     } catch (e) {
-      try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch {}
       console.error("[Whisper]", jobId, fmt, "failed:", e.message);
     }
   }
