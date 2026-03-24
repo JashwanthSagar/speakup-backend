@@ -5,577 +5,283 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Student Dashboard - SpeakUp</title>
   <style>
-    *{ box-sizing:border-box; margin:0; padding:0; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      background: linear-gradient(270deg, #ff416c, #ff4b2b, #ff6a00);
-      background-size: 600% 600%;
-      animation: bg 8s ease infinite;
-      padding: 0 0 40px;
-    }
-    @keyframes bg {
-      0%  { background-position: 0% }
-      50% { background-position: 100% }
-      100%{ background-position: 0% }
-    }
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 18px;
-      background: rgba(0,0,0,0.15);
-    }
-    .topbar h2 { color: white; font-size: 20px; margin: 0; }
-    .logout {
-      background: rgba(255,255,255,0.2);
-      border: none; padding: 8px 16px;
-      border-radius: 20px; color: white;
-      font-size: 13px; font-weight: 600;
-      cursor: pointer; -webkit-appearance: none;
-    }
-    .logout:active { background: #e74c3c; }
-    .content {
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    .welcome-text {
-      color: white; font-size: 20px;
-      font-weight: 700; text-align: center; padding: 4px 0;
-    }
-    .card {
-      background: rgba(255,255,255,0.15);
-      backdrop-filter: blur(15px);
-      -webkit-backdrop-filter: blur(15px);
-      border-radius: 18px;
-      padding: 18px; color: white;
-    }
-    .topic-label {
-      font-size: 12px; font-weight: 600;
-      opacity: 0.7; text-transform: uppercase;
-      letter-spacing: 0.05em; margin-bottom: 6px;
-    }
-    .topic-text { font-size: 16px; font-weight: 700; line-height: 1.4; }
-
-    .banner {
-      border-radius: 12px; padding: 11px 14px;
-      font-size: 13px; color: white;
-      text-align: center; line-height: 1.5; display: none;
-    }
-    .banner.orange { background: rgba(255,150,0,0.25); border: 1px solid rgba(255,150,0,0.5); }
-    .banner.green  { background: rgba(0,200,100,0.25); border: 1px solid rgba(0,200,100,0.5); }
-
-    .recorder {
-      display: flex; flex-direction: column;
-      align-items: center; gap: 14px;
-    }
-    .mic-btn {
-      width: 88px; height: 88px; border-radius: 50%;
-      border: none; font-size: 36px; cursor: pointer;
-      transition: all 0.2s; display: flex;
-      align-items: center; justify-content: center;
-      -webkit-appearance: none;
-    }
-    .mic-btn.idle      { background: linear-gradient(135deg,#00c6ff,#0072ff); box-shadow: 0 4px 20px rgba(0,114,255,0.5); }
-    .mic-btn.recording { background: linear-gradient(135deg,#ff4b2b,#ee0979); animation: pulse 1.2s ease infinite; }
-    @keyframes pulse {
-      0%  { box-shadow: 0 0 0 0 rgba(238,9,121,0.6); }
-      70% { box-shadow: 0 0 0 18px rgba(238,9,121,0); }
-      100%{ box-shadow: 0 0 0 0 rgba(238,9,121,0); }
-    }
-    .mic-btn:active { transform: scale(0.93); }
-    .status-row {
-      display: flex; align-items: center;
-      gap: 8px; font-size: 14px; font-weight: 600; color: white;
-    }
-    #dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: rgba(255,255,255,0.4); flex-shrink: 0;
-    }
-    #timer { font-size: 32px; font-weight: 700; color: white; letter-spacing: 2px; }
-    .action-btns { display: flex; gap: 10px; width: 100%; }
-    .action-btns button {
-      flex: 1; padding: 13px 8px; border: none;
-      border-radius: 14px; font-size: 14px; font-weight: 600;
-      cursor: pointer; transition: 0.2s; -webkit-appearance: none;
-    }
-    .action-btns button:active:not(:disabled) { transform: scale(0.96); }
-    .btn-stop   { background: rgba(255,255,255,0.25); color: white; }
-    .btn-submit { background: linear-gradient(135deg,#00c6ff,#0072ff); color: white; }
-    .action-btns button:disabled { opacity: 0.35; cursor: not-allowed; }
-
-    audio { width: 100%; border-radius: 10px; display: none; }
-
-    .speech-label {
-      font-size: 12px; font-weight: 600; opacity: 0.7;
-      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
-    }
-    .speech-text {
-      font-size: 15px; line-height: 1.6; opacity: 0.9; min-height: 48px;
-    }
-    /* live text — interim shown slightly faded */
-    .interim { opacity: 0.55; font-style: italic; }
-
-    .spinner {
-      display: inline-block; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white; border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-right: 6px; vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    @media(min-width: 540px) {
-      .content { padding: 24px; }
-      .mic-btn { width: 100px; height: 100px; font-size: 40px; }
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;min-height:100vh;background:linear-gradient(270deg,#ff416c,#ff4b2b,#ff6a00);background-size:600% 600%;animation:bg 8s ease infinite;padding-bottom:40px}
+    @keyframes bg{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
+    .topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:rgba(0,0,0,.15)}
+    .topbar h2{color:#fff;font-size:20px;margin:0}
+    .logout{background:rgba(255,255,255,.2);border:none;padding:8px 16px;border-radius:20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+    .logout:active{background:#e74c3c}
+    .content{padding:16px;display:flex;flex-direction:column;gap:14px;max-width:500px;margin:0 auto}
+    .welcome{color:#fff;font-size:20px;font-weight:700;text-align:center}
+    .card{background:rgba(255,255,255,.15);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);border-radius:18px;padding:18px;color:#fff}
+    .lbl{font-size:11px;font-weight:700;opacity:.65;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+    .topic-val{font-size:16px;font-weight:700;line-height:1.4}
+    #banner{display:none;border-radius:12px;padding:10px 14px;font-size:13px;color:#fff;text-align:center;line-height:1.5}
+    .recorder{display:flex;flex-direction:column;align-items:center;gap:14px}
+    .status-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#fff}
+    #dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.35);flex-shrink:0}
+    #timer{font-size:32px;font-weight:700;color:#fff;letter-spacing:2px}
+    #micBtn{width:90px;height:90px;border-radius:50%;border:none;font-size:38px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+    #micBtn.idle{background:linear-gradient(135deg,#00c6ff,#0072ff);box-shadow:0 4px 20px rgba(0,114,255,.5)}
+    #micBtn.rec{background:linear-gradient(135deg,#ff4b2b,#ee0979);animation:pulse 1.2s ease infinite}
+    #micBtn:active{transform:scale(.93)}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(238,9,121,.6)}70%{box-shadow:0 0 0 18px rgba(238,9,121,0)}100%{box-shadow:0 0 0 0 rgba(238,9,121,0)}}
+    .btns{display:flex;gap:10px;width:100%}
+    .btns button{flex:1;padding:13px 8px;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+    .btns button:active:not(:disabled){transform:scale(.96)}
+    #stopBtn{background:rgba(255,255,255,.25);color:#fff}
+    #submitBtn{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff}
+    .btns button:disabled{opacity:.35;cursor:not-allowed}
+    audio{width:100%;border-radius:10px;display:none;margin-top:4px}
+    .speech-val{font-size:15px;line-height:1.65;min-height:50px;word-break:break-word}
+    .interim{opacity:.5;font-style:italic}
+    .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:5px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(min-width:540px){.content{padding:24px}#micBtn{width:100px;height:100px;font-size:42px}}
   </style>
 </head>
 <body>
-
-<div class="topbar">
-  <h2>🎤 SpeakUp</h2>
-  <button class="logout" onclick="logout()">Logout</button>
-</div>
-
+<div class="topbar"><h2>🎤 SpeakUp</h2><button class="logout" onclick="logout()">Logout</button></div>
 <div class="content">
-
-  <p class="welcome-text" id="welcomeText">Welcome 👋</p>
-
-  <div class="banner orange" id="serverBanner"></div>
-
-  <div class="card">
-    <div class="topic-label">📚 Today's Topic</div>
-    <div class="topic-text" id="topicText">Loading...</div>
-  </div>
-
+  <p class="welcome" id="welcome">Welcome 👋</p>
+  <div id="banner"></div>
+  <div class="card"><div class="lbl">📚 Today's Topic</div><div class="topic-val" id="topicText">Loading...</div></div>
   <div class="card recorder">
-    <div class="status-row">
-      <span id="dot"></span>
-      <span id="statusText">Tap mic to start</span>
-    </div>
+    <div class="status-row"><span id="dot"></span><span id="status">Tap mic to start</span></div>
     <div id="timer">00:00</div>
-    <button class="mic-btn idle" id="micBtn" onclick="toggleRecording()">🎙</button>
-    <div class="action-btns">
-      <button class="btn-stop"   id="stopBtn"   onclick="stopRecording()"  disabled>⏹ Stop</button>
-      <button class="btn-submit" id="submitBtn" onclick="submitAudio()"    disabled>📤 Submit</button>
+    <button id="micBtn" class="idle" onclick="toggleRec()">🎙</button>
+    <div class="btns">
+      <button id="stopBtn" onclick="stopRec()" disabled>⏹ Stop</button>
+      <button id="submitBtn" onclick="submitAudio()" disabled>📤 Submit</button>
     </div>
   </div>
-
-  <audio id="audioPlayback" controls></audio>
-
-  <div class="card">
-    <div class="speech-label">📝 Your Speech</div>
-    <div class="speech-text" id="speechText">Your speech will appear here while you record...</div>
-  </div>
-
-  <div class="card">
-    <div class="speech-label">✅ Corrected Speech</div>
-    <div class="speech-text" id="correctedText">AI correction will appear after you stop...</div>
-  </div>
-
+  <audio id="player" controls></audio>
+  <div class="card"><div class="lbl">📝 Your Speech</div><div class="speech-val" id="speechBox">Your speech will appear here while recording...</div></div>
+  <div class="card"><div class="lbl">✅ Corrected Speech</div><div class="speech-val" id="corrBox">AI correction will appear after you stop...</div></div>
 </div>
-
 <script>
-const BACKEND_URL = "https://speakup-backend-1.onrender.com";
+const API = "https://speakup-backend-1.onrender.com";
 
-// ── Guard ──
-const student = JSON.parse(localStorage.getItem("currentStudent"));
-if (!student) window.location.href = "student.html";
-document.getElementById("welcomeText").innerText = "Welcome, " + student.name + " 👋";
+const student = JSON.parse(localStorage.getItem("currentStudent") || "null");
+if (!student) location.href = "student.html";
+document.getElementById("welcome").innerText = "Welcome, " + student.name + " 👋";
 
-async function safeFetch(url, options = {}) { return fetch(url, options); }
-
-// ── Server wake-up ──
-async function wakeUpServer() {
-  const b = document.getElementById("serverBanner");
-  try {
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 3000);
-    await fetch(BACKEND_URL + "/status", { signal: ctrl.signal });
-  } catch {
-    b.className = "banner orange";
-    b.innerText = "⏳ Server is waking up, please wait...";
-    b.style.display = "block";
-    try {
-      await safeFetch(BACKEND_URL + "/status");
-      b.className = "banner green";
-      b.innerText = "✅ Server ready!";
-      setTimeout(() => { b.style.display = "none"; }, 2000);
-    } catch {
-      b.innerText = "⚠️ Server not responding. Try refreshing.";
-    }
-  }
+function showBanner(msg, color) {
+  const b = document.getElementById("banner");
+  b.style.display = "block";
+  b.style.background = color==="green" ? "rgba(0,200,100,.25)" : "rgba(255,150,0,.25)";
+  b.style.border = color==="green" ? "1px solid rgba(0,200,100,.5)" : "1px solid rgba(255,150,0,.5)";
+  b.innerText = msg;
 }
-wakeUpServer();
+function hideBanner() { document.getElementById("banner").style.display = "none"; }
 
-async function loadTopic() {
+(async () => {
   try {
-    const res  = await safeFetch(BACKEND_URL + "/get-topic");
-    const data = await res.json();
-    document.getElementById("topicText").innerText = data.topic || "No topic assigned yet";
+    const c = new AbortController(); setTimeout(() => c.abort(), 3000);
+    await fetch(API + "/status", { signal: c.signal });
   } catch {
-    document.getElementById("topicText").innerText =
-      localStorage.getItem("topic") || "No topic assigned yet";
+    showBanner("⏳ Server waking up, please wait 20–30 sec...", "orange");
+    try { await fetch(API + "/status"); showBanner("✅ Server ready!", "green"); setTimeout(hideBanner, 2000); }
+    catch { showBanner("⚠️ Server offline. Please refresh.", "orange"); }
   }
-}
-loadTopic();
+})();
 
-// ── State ──
-let mediaRecorder    = null;
-let audioChunks      = [];
-let timerInterval    = null;
-let seconds          = 0;
-let isRecording      = false;
-let finalTranscript  = "";   // confirmed words
-let interimTranscript = "";  // words being spoken right now
+fetch(API + "/get-topic").then(r => r.json())
+  .then(d => { document.getElementById("topicText").innerText = d.topic || "No topic yet"; })
+  .catch(() => { document.getElementById("topicText").innerText = "Could not load topic"; });
 
 // ── Speech Recognition ──
-// Works on: Chrome desktop, Chrome Android, Samsung Internet
-// Does NOT work on: Firefox, iOS Safari (we fallback to Whisper for those)
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-let recognition = null;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let rec = null, recActive = false, recFinal = "", recLive = "";
 
-function buildRecognition() {
-  if (!SpeechRecognition) return null;
-
-  const rec = new SpeechRecognition();
-  rec.continuous     = true;   // keep listening — don't stop after silence
-  rec.interimResults = true;   // show words as they are spoken
-  rec.lang           = "en-IN";
-  rec.maxAlternatives = 1;
-
-  rec.onstart = () => {
-    console.log("[STT] Started");
-  };
-
-  rec.onresult = (event) => {
-    let interim = "";
-    // Only loop from the last resultIndex to avoid reprocessing old results
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const t = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += t + " ";
-        console.log("[STT] Final:", t);
-      } else {
-        interim = t;
-      }
+function buildRec() {
+  if (!SR) return null;
+  const r = new SR();
+  r.continuous = true; r.interimResults = true; r.lang = "en-IN";
+  r.onresult = e => {
+    recLive = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) recFinal += e.results[i][0].transcript + " ";
+      else recLive = e.results[i][0].transcript;
     }
-    interimTranscript = interim;
-    updateSpeechBox();
+    renderSpeech();
   };
-
-  rec.onerror = (e) => {
-    console.warn("[STT] Error:", e.error);
-    // "no-speech" is normal — don't stop, just keep going
-    if (e.error === "no-speech") return;
-    // "aborted" means we stopped it ourselves — ignore
-    if (e.error === "aborted") return;
-    // For other errors restart recognition if still recording
-    if (isRecording) restartRecognition();
-  };
-
-  rec.onend = () => {
-    console.log("[STT] Ended — isRecording:", isRecording);
-    // KEY FIX: On mobile Chrome, recognition stops automatically after silence.
-    // Restart it immediately if we're still recording — this gives continuous live text!
-    if (isRecording) {
-      setTimeout(() => restartRecognition(), 200);
+  r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") console.warn("[STT]", e.error); };
+  r.onend = () => {
+    if (recActive) {
+      setTimeout(() => {
+        if (recActive) { try { r.start(); } catch(e) { rec = buildRec(); if(rec) try{rec.start();}catch(e2){} } }
+      }, 200);
     }
   };
-
-  return rec;
+  return r;
 }
 
-function restartRecognition() {
-  if (!isRecording || !SpeechRecognition) return;
-  try {
-    recognition = buildRecognition();
-    recognition.start();
-    console.log("[STT] Restarted");
-  } catch (e) {
-    console.warn("[STT] Restart failed:", e.message);
-    // Try again after a short delay
-    setTimeout(() => {
-      if (isRecording) restartRecognition();
-    }, 500);
-  }
+function renderSpeech() {
+  const el = document.getElementById("speechBox");
+  const f = recFinal.trim(), l = recLive.trim();
+  if (!f && !l) { el.innerHTML = '<span style="opacity:.45">Listening...</span>'; return; }
+  el.innerHTML = (f ? f+" " : "") + (l ? '<span class="interim">'+l+"</span>" : "");
 }
 
-function updateSpeechBox() {
-  const el = document.getElementById("speechText");
-  const final   = finalTranscript.trim();
-  const interim = interimTranscript.trim();
-  if (!final && !interim) {
-    el.innerHTML = '<span style="opacity:0.5">Listening...</span>';
-    return;
-  }
-  // Show final text normally + interim text faded (italic)
-  el.innerHTML =
-    (final ? final + " " : "") +
-    (interim ? '<span class="interim">' + interim + "</span>" : "");
-}
+// ── MediaRecorder ──
+let mr = null, chunks = [], timerInt = null, secs = 0, recording = false;
 
-function getSupportedMimeType() {
-  const types = ["audio/mp4","audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg",""];
-  for (const t of types) {
-    if (t === "" || MediaRecorder.isTypeSupported(t)) return t;
-  }
+function bestMime() {
+  for (const m of ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus","audio/ogg",""])
+    if (!m || MediaRecorder.isTypeSupported(m)) return m;
   return "";
 }
+function getExt(m) { return !m?"webm":m.includes("mp4")?"mp4":m.includes("ogg")?"ogg":"webm"; }
 
-function getExt(mime) {
-  if (!mime) return "webm";
-  if (mime.includes("mp4")) return "mp4";
-  if (mime.includes("ogg")) return "ogg";
-  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
-  if (mime.includes("wav")) return "wav";
-  return "webm";
-}
+function toggleRec() { recording ? stopRec() : startRec(); }
 
-function toggleRecording() {
-  if (!isRecording) startRecording();
-  else stopRecording();
-}
-
-// ── Start Recording ──
-async function startRecording() {
+async function startRec() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = []; recFinal = ""; recLive = ""; secs = 0; recording = true;
+    document.getElementById("speechBox").innerHTML = SR
+      ? '<span style="opacity:.45">Listening...</span>'
+      : 'Recording... text will appear after you tap Stop.';
+    document.getElementById("corrBox").innerText = "AI correction will appear after you stop...";
+    document.getElementById("player").style.display = "none";
 
-    audioChunks      = [];
-    finalTranscript  = "";
-    interimTranscript = "";
-    seconds          = 0;
-    isRecording      = true;
+    if (SR) { recActive = true; rec = buildRec(); try { rec.start(); } catch(e) { console.warn("[STT] start:", e.message); } }
 
-    document.getElementById("speechText").innerHTML  = '<span style="opacity:0.5">Listening...</span>';
-    document.getElementById("correctedText").innerText = "AI correction will appear after you stop...";
-    document.getElementById("audioPlayback").style.display = "none";
-
-    // ── Start Speech Recognition ──
-    if (SpeechRecognition) {
-      recognition = buildRecognition();
-      try {
-        recognition.start();
-      } catch(e) {
-        console.warn("[STT] Could not start:", e.message);
-      }
-    } else {
-      // No STT support (Firefox / iOS Safari) — show notice
-      document.getElementById("speechText").innerText =
-        "Recording... (live text not supported on this browser — transcript will appear after Stop)";
-    }
-
-    // ── Start MediaRecorder for audio file ──
-    const mimeType = getSupportedMimeType();
-    mediaRecorder  = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      const usedMime       = mediaRecorder.mimeType || mimeType || "audio/webm";
-      const blob           = new Blob(audioChunks, { type: usedMime });
-      window.audioBlob     = blob;
-      window.audioBlobMime = usedMime;
-      console.log("[Rec] blob:", blob.size, "mime:", usedMime);
-
-      const audioEl = document.getElementById("audioPlayback");
-      audioEl.src   = URL.createObjectURL(blob);
-      audioEl.style.display = "block";
+    const mime = bestMime();
+    mr = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+    mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mr.onstop = async () => {
+      const usedMime = mr.mimeType || mime || "audio/webm";
+      const blob = new Blob(chunks, { type: usedMime });
+      window.audioBlob = blob; window.audioBlobMime = usedMime;
+      const p = document.getElementById("player");
+      p.src = URL.createObjectURL(blob); p.style.display = "block";
       document.getElementById("submitBtn").disabled = false;
 
-      // If STT got a good transcript — use it directly, no need for Whisper
-      const sttText = finalTranscript.trim();
-      if (sttText.length > 3) {
-        console.log("[Flow] Using STT transcript:", sttText.substring(0, 60));
-        document.getElementById("speechText").innerText = sttText;
-        await processTranscript(sttText);
+      const sttText = recFinal.trim();
+      if (sttText.length > 2) {
+        document.getElementById("speechBox").innerText = sttText;
+        await doCorrect(sttText);
       } else {
-        // STT failed or got nothing — fallback to Whisper
-        console.log("[Flow] STT empty/short, falling back to Whisper");
-        await transcribeWithPolling(blob, usedMime);
+        await doWhisper(blob, usedMime);
       }
     };
-    mediaRecorder.start(250);
+    mr.start(250);
 
-    // ── UI ──
-    const micBtn = document.getElementById("micBtn");
-    micBtn.className = "mic-btn recording";
-    micBtn.innerText = "⏹";
-    document.getElementById("statusText").innerText = "Recording...";
+    document.getElementById("micBtn").className = "rec";
+    document.getElementById("micBtn").innerText = "⏹";
+    document.getElementById("status").innerText = "Recording...";
     document.getElementById("dot").style.background = "#ff4b2b";
-    document.getElementById("stopBtn").disabled     = false;
-    document.getElementById("submitBtn").disabled   = true;
-
-    timerInterval = setInterval(() => {
-      seconds++;
-      const m = String(Math.floor(seconds / 60)).padStart(2, "0");
-      const s = String(seconds % 60).padStart(2, "0");
-      document.getElementById("timer").innerText = m + ":" + s;
-    }, 1000);
-
+    document.getElementById("stopBtn").disabled = false;
+    document.getElementById("submitBtn").disabled = true;
     window.activeStream = stream;
 
-  } catch (err) {
-    isRecording = false;
-    alert("Microphone access is required. Please allow mic permission and try again.");
-    console.error("Mic error:", err);
+    timerInt = setInterval(() => {
+      secs++;
+      const m = String(Math.floor(secs/60)).padStart(2,"0");
+      const s = String(secs%60).padStart(2,"0");
+      document.getElementById("timer").innerText = m+":"+s;
+    }, 1000);
+  } catch(e) {
+    recording = false;
+    alert("Mic access required. Please allow microphone permission.");
   }
 }
 
-// ── Stop Recording ──
-async function stopRecording() {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-  isRecording = false; // set FIRST so rec.onend doesn't restart
-
-  // Stop speech recognition
-  if (recognition) {
-    try { recognition.stop(); } catch(e) {}
-    recognition = null;
-  }
-
-  // Flush any interim text to final
-  if (interimTranscript.trim()) {
-    finalTranscript += interimTranscript.trim() + " ";
-    interimTranscript = "";
-  }
-
-  // Show final text immediately
-  const sttText = finalTranscript.trim();
-  if (sttText) {
-    document.getElementById("speechText").innerText = sttText;
-  }
-
-  mediaRecorder.stop();
-  clearInterval(timerInterval);
+async function stopRec() {
+  if (!mr || mr.state === "inactive") return;
+  recording = false; recActive = false;
+  if (rec) { try { rec.stop(); } catch(e) {} rec = null; }
+  if (recLive.trim()) { recFinal += recLive.trim() + " "; recLive = ""; }
+  if (recFinal.trim()) document.getElementById("speechBox").innerText = recFinal.trim();
+  mr.stop(); clearInterval(timerInt);
   if (window.activeStream) window.activeStream.getTracks().forEach(t => t.stop());
-
-  const micBtn = document.getElementById("micBtn");
-  micBtn.className = "mic-btn idle";
-  micBtn.innerText = "🎙";
-  document.getElementById("statusText").innerText = "Processing...";
+  document.getElementById("micBtn").className = "idle";
+  document.getElementById("micBtn").innerText = "🎙";
+  document.getElementById("status").innerText = "Processing...";
   document.getElementById("dot").style.background = "orange";
-  document.getElementById("stopBtn").disabled     = true;
-
-  // Wait for mediaRecorder.onstop to fire
-  await new Promise(r => setTimeout(r, 1000));
-
-  document.getElementById("statusText").innerText = "Tap mic to record again";
-  document.getElementById("dot").style.background = "rgba(255,255,255,0.4)";
+  document.getElementById("stopBtn").disabled = true;
+  await new Promise(r => setTimeout(r, 800));
+  document.getElementById("status").innerText = "Tap mic to record again";
+  document.getElementById("dot").style.background = "rgba(255,255,255,.4)";
 }
 
-// ── Whisper fallback via polling ──
-async function transcribeWithPolling(blob, mimeType) {
-  const speechEl    = document.getElementById("speechText");
-  const correctedEl = document.getElementById("correctedText");
-
-  if (blob.size < 1000) {
-    speechEl.innerText    = "Recording too short. Please speak for at least 2 seconds.";
-    correctedEl.innerText = "Nothing to correct.";
-    return;
-  }
-
-  speechEl.innerHTML = '<span class="spinner"></span>Transcribing...';
-
-  const ext      = getExt(mimeType);
-  const formData = new FormData();
-  formData.append("audio", blob, "recording." + ext);
-
-  let jobId = null;
+// ── Whisper polling fallback ──
+async function doWhisper(blob, mime) {
+  const sEl = document.getElementById("speechBox");
+  const cEl = document.getElementById("corrBox");
+  if (blob.size < 500) { sEl.innerText = "Too short. Please speak for at least 2 seconds."; return; }
+  sEl.innerHTML = '<span class="spin"></span>Transcribing...';
+  const fd = new FormData();
+  fd.append("audio", blob, "recording." + getExt(mime));
+  let jobId;
   try {
-    const res  = await safeFetch(BACKEND_URL + "/transcribe", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.error === "too_short") {
-      speechEl.innerText    = "Recording too short. Speak for at least 2 seconds.";
-      correctedEl.innerText = "Nothing to correct.";
-      return;
-    }
-    jobId = data.jobId;
-    if (!jobId) { speechEl.innerText = "Server error. Please try again."; return; }
-  } catch (err) {
-    speechEl.innerText = "Could not send audio. Check your connection and try again.";
-    return;
-  }
+    const r = await fetch(API + "/transcribe", { method: "POST", body: fd });
+    const d = await r.json();
+    if (d.error === "too_short") { sEl.innerText = "Too short. Speak for at least 2 seconds."; return; }
+    jobId = d.jobId;
+    if (!jobId) { sEl.innerText = "Server error. Please try again."; return; }
+  } catch(e) { sEl.innerText = "Could not send audio. Check your internet."; return; }
 
-  // Poll every 3 seconds
-  let attempts = 0;
-  while (attempts < 40) {
+  let tries = 0;
+  while (tries < 40) {
     await new Promise(r => setTimeout(r, 3000));
-    attempts++;
+    tries++;
     try {
-      const res = await safeFetch(BACKEND_URL + "/job/" + jobId);
-      const job = await res.json();
-      if (job.status === "done") {
-        if (job.transcript && job.transcript.trim()) {
-          speechEl.innerText = job.transcript.trim();
-          await processTranscript(job.transcript.trim());
+      const r = await fetch(API + "/job/" + jobId);
+      const j = await r.json();
+      if (j.status === "done") {
+        if (j.transcript && j.transcript.trim()) {
+          sEl.innerText = j.transcript.trim();
+          await doCorrect(j.transcript.trim());
         } else {
-          speechEl.innerText    = "No speech detected. Please speak clearly and try again.";
-          correctedEl.innerText = "Nothing to correct.";
+          sEl.innerText = "No speech detected. Please speak clearly and try again.";
+          cEl.innerText = "Nothing to correct.";
         }
         return;
       }
-      if (job.status === "error") {
-        speechEl.innerText    = "Transcription failed. Please try again.";
-        correctedEl.innerText = "Could not process speech.";
-        return;
-      }
-      const dots = ".".repeat((attempts % 3) + 1);
-      speechEl.innerHTML = '<span class="spinner"></span>Transcribing' + dots;
-    } catch { /* network blip — keep polling */ }
+      if (j.status === "error") { sEl.innerText = "Transcription failed. Please try again."; return; }
+      sEl.innerHTML = '<span class="spin"></span>Transcribing' + ".".repeat((tries%3)+1);
+    } catch(e) { /* network blip — keep polling */ }
   }
-  speechEl.innerText = "Timed out. Please try a shorter recording.";
+  sEl.innerText = "Timed out. Please try again.";
 }
 
-// ── AI Grammar Correction ──
-async function processTranscript(text) {
-  const correctedEl = document.getElementById("correctedText");
-  correctedEl.innerHTML = '<span class="spinner"></span>Correcting grammar...';
+// ── AI correction ──
+async function doCorrect(text) {
+  const el = document.getElementById("corrBox");
+  el.innerHTML = '<span class="spin"></span>Correcting grammar...';
   try {
-    const res  = await safeFetch(BACKEND_URL + "/correct", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ text })
+    const r = await fetch(API + "/correct", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
     });
-    const data = await res.json();
-    correctedEl.innerText = data.corrected || "No correction returned.";
-  } catch {
-    correctedEl.innerText = "Could not connect to AI. Please try again.";
-  }
+    const d = await r.json();
+    el.innerText = d.corrected || text;
+  } catch { el.innerText = "Could not connect to AI. Please try again."; }
 }
 
-// ── Submit Audio ──
+// ── Submit ──
 async function submitAudio() {
-  if (!window.audioBlob) { alert("Please record something first!"); return; }
+  if (!window.audioBlob) { alert("Please record first!"); return; }
   const btn = document.getElementById("submitBtn");
-  btn.disabled  = true;
-  btn.innerText = "Uploading...";
-
-  const ext = getExt(window.audioBlobMime || "");
-  const fd  = new FormData();
-  fd.append("audio", window.audioBlob, "recording." + ext);
-  fd.append("name",  student.name);
-  fd.append("pin",   student.pin);
-
+  btn.disabled = true; btn.innerText = "Uploading...";
+  const fd = new FormData();
+  fd.append("audio", window.audioBlob, "recording." + getExt(window.audioBlobMime||""));
+  fd.append("name", student.name); fd.append("pin", student.pin);
   try {
-    await safeFetch(BACKEND_URL + "/upload", { method: "POST", body: fd });
+    await fetch(API + "/upload", { method: "POST", body: fd });
     btn.innerText = "✅ Submitted!";
-    alert("Recording submitted successfully! ✅");
+    alert("Submitted successfully! ✅");
   } catch {
-    btn.disabled  = false;
-    btn.innerText = "📤 Submit";
-    alert("Upload failed. Check your connection. ❌");
+    btn.disabled = false; btn.innerText = "📤 Submit";
+    alert("Upload failed. Check connection. ❌");
   }
 }
 
-// ── Logout ──
-function logout() {
-  localStorage.removeItem("currentStudent");
-  window.location.href = "index.html";
-}
+function logout() { localStorage.removeItem("currentStudent"); location.href = "index.html"; }
 </script>
 </body>
 </html>
